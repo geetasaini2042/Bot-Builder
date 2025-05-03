@@ -36,6 +36,7 @@ load_user_status_cache()
 @app.route('/<bot_token>', methods=['POST'])
 def webhook(bot_token):
     update = request.get_json()
+    client.send_message(bot_token, chat_id, update)
     load_user_status_cache()
     if not update:
         return jsonify({"status": "no update"}), 400
