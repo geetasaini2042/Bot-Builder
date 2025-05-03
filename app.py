@@ -74,9 +74,11 @@ def handle_text(bot_token,full_update, message):
     if text == "/start":
         handle_start(bot_token, update)
     else:
-        yioip = get_user_status(bot_token, user_id)
+        yioip = get_user_status(bot_token, chat_id)
+        client.send_message(bot_token, chat_id,yioip )
         if "status" in yioip:
             status = yioip.get("status")
+            client.send_message(bot_token, chat_id,f"status v {status}" )
             if status == "":
               print("Nothing in status")
             else:
