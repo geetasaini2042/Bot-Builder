@@ -67,7 +67,7 @@ def handle_message(bot_token,update, message):
         handle_video(bot_token,update, message)
 
 
-def handle_text(bot_token,update, message):
+def handle_text(bot_token,full_update, message):
     chat_id = message['chat']['id']
     user_id = message['chat']['id']
     text = message['text']
