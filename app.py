@@ -87,7 +87,7 @@ def handle_text(bot_token, full_update, message):
             else:
                 if status == "getting_file_description":
                     BotServer.add_file_description(bot_token, full_update)
-                elif status == "getting_folder_name":
+                elif status == "getting_new_folder_name":
                     BotServer.add_folder(bot_token, full_update)
                 elif status == "getting_new_folder_des":
                     BotServer.add_folder(bot_token, full_update)
