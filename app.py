@@ -103,12 +103,12 @@ def handle_video(bot_token,full_update, message):
     file_id = video['file_id']
     client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
 
-def handle_document(bot_token,full_update, messgae):
+def handle_document(bot_token,full_update, message):
     doc = message['document']
     chat_id = message['chat']['id']
     file_id = doc['file_id']
     file_name = doc.get('file_name', 'Unknown')
-    yioip = get_user_status(bot_token, user_id)
+    yioip = get_user_status(bot_token, chat_id)
     if "status" in yioip:
             status = yioip.get("status")
             if status == "":
