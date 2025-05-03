@@ -110,6 +110,7 @@ def handle_document(bot_token,full_update, message):
     file_id = doc['file_id']
     file_name = doc.get('file_name', 'Unknown')
     yioip = get_user_status(bot_token, chat_id)
+    client.send_message(bot_token, chat_id,yioip )
     if "status" in yioip:
             status = yioip.get("status")
             if status == "":
