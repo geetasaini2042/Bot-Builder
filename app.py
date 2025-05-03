@@ -67,30 +67,32 @@ def handle_message(bot_token,update, message):
         handle_video(bot_token,update, message)
 
 
-def handle_text(bot_token,full_update, message):
+def handle_text(bot_token, full_update, message):
     chat_id = message['chat']['id']
     user_id = message['chat']['id']
-    text = message['text']
+    text = message.get('text', '')
+
     if text == "/start":
-        handle_start(bot_token, update)
+        handle_start(bot_token, full_update)  # use full_update here, not undefined 'update'
     else:
         yioip = get_user_status(bot_token, chat_id)
-        client.send_message(bot_token, chat_id,yioip )
+        client.send_message(bot_token, chat_id, str(yioip))
+
         if "status" in yioip:
-            status = yioip.get("status")
-            client.send_message(bot_token, chat_id,f"status v {status}" )
+            status = yioip.get("status", "")
+            client.send_message(bot_token, chat_id, f"status v {status}")
+
             if status == "":
-              print("Nothing in status")
+                print("Nothing in status")
             else:
-              if status == "getting_file_description":
-                BotServer.add_file_description(bot_token, full_update)
-              elif status == "getting_folder_name":
-                BotServer.add_folder(bot_token, full_update)
-              elif status == "getting_new_folder_des":
-                BotServer.add_folder(bot_token, full_update)
-              elif status == "renaming_file":
-                BotServer.rename_file(bot_token, full_update)  
-                
+                if status == "getting_file_description":
+                    BotServer.add_file_description(bot_token, full_update)
+                elif status == "getting_folder_name":
+                    BotServer.add_folder(bot_token, full_update)
+                elif status == "getting_new_folder_des":
+                    BotServer.add_folder(bot_token, full_update)
+                elif status == "renaming_file":
+                    BotServer.rename_file(bot_token, full_update)
 
 def handle_photo(bot_token,full_update, message):
     chat_id = message['chat']['id']
