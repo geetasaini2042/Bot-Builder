@@ -100,6 +100,17 @@ def handle_photo(bot_token,full_update, message):
     photo = photos[-1]  # Best quality
     file_id = photo['file_id']
     client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
+    yioip = get_user_status(bot_token, chat_id)
+    client.send_message(bot_token, chat_id,yioip )
+    if "status" in yioip:
+            status = yioip.get("status")
+            client.send_message(bot_token, chat_id,f"status v {status}" )
+            if status == "":
+              print("Nothing in status")
+            else:
+              if status == "awaiting_file_upload":
+                client.send_message(bot_token, chat_id, f"Calling Bot server.!")
+                BotServer.add_file(bot_token, full_update)
 
 def handle_video(bot_token,full_update, message):
     chat_id = message['chat']['id']
@@ -107,6 +118,17 @@ def handle_video(bot_token,full_update, message):
     video = videos[-1]  # Best quality
     file_id = video['file_id']
     client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
+    yioip = get_user_status(bot_token, chat_id)
+    client.send_message(bot_token, chat_id,yioip )
+    if "status" in yioip:
+            status = yioip.get("status")
+            client.send_message(bot_token, chat_id,f"status v {status}" )
+            if status == "":
+              print("Nothing in status")
+            else:
+              if status == "awaiting_file_upload":
+                client.send_message(bot_token, chat_id, f"Calling Bot server.!")
+                BotServer.add_file(bot_token, full_update)
 
 def handle_document(bot_token, full_update, message):
     chat_id = message['chat']['id']
