@@ -31,7 +31,7 @@ def load_user_status_cache():
         print(f"Error loading user status: {e}")
 def get_user_status(bot_token, user_id):
     return user_status_cache.get(bot_token, {}).get(str(user_id), {})
-load_user_status_cache()
+
 ##########
 @app.route('/<bot_token>', methods=['POST'])
 def webhook(bot_token):
@@ -76,11 +76,11 @@ def handle_text(bot_token, full_update, message):
         handle_start(bot_token, full_update)  # use full_update here, not undefined 'update'
     else:
         yioip = get_user_status(bot_token, chat_id)
-        client.send_message(bot_token, chat_id, str(yioip))
+        #client.send_message(bot_token, chat_id, str(yioip))
 
         if "status" in yioip:
             status = yioip.get("status", "")
-            client.send_message(bot_token, chat_id, f"status v {status}")
+            #client.send_message(bot_token, chat_id, f"status v {status}")
 
             if status == "":
                 print("Nothing in status")
@@ -99,17 +99,17 @@ def handle_photo(bot_token,full_update, message):
     photos = message['photo']
     photo = photos[-1]  # Best quality
     file_id = photo['file_id']
-    client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
+    #client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
     yioip = get_user_status(bot_token, chat_id)
-    client.send_message(bot_token, chat_id,yioip )
+    #client.send_message(bot_token, chat_id,yioip )
     if "status" in yioip:
             status = yioip.get("status")
-            client.send_message(bot_token, chat_id,f"status v {status}" )
+            #client.send_message(bot_token, chat_id,f"status v {status}" )
             if status == "":
               print("Nothing in status")
             else:
               if status == "awaiting_file_upload":
-                client.send_message(bot_token, chat_id, f"Calling Bot server.!")
+                #client.send_message(bot_token, chat_id, f"Calling Bot server.!")
                 BotServer.add_file(bot_token, full_update)
 
 def handle_video(bot_token,full_update, message):
@@ -117,17 +117,17 @@ def handle_video(bot_token,full_update, message):
     videos = message['video']
     video = videos[-1]  # Best quality
     file_id = video['file_id']
-    client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
+    #client.send_message(bot_token, chat_id, f"Received photo with file_id: {file_id}")
     yioip = get_user_status(bot_token, chat_id)
-    client.send_message(bot_token, chat_id,yioip )
+    #client.send_message(bot_token, chat_id,yioip )
     if "status" in yioip:
             status = yioip.get("status")
-            client.send_message(bot_token, chat_id,f"status v {status}" )
+            #client.send_message(bot_token, chat_id,f"status v {status}" )
             if status == "":
               print("Nothing in status")
             else:
               if status == "awaiting_file_upload":
-                client.send_message(bot_token, chat_id, f"Calling Bot server.!")
+                #client.send_message(bot_token, chat_id, f"Calling Bot server.!")
                 BotServer.add_file(bot_token, full_update)
 
 def handle_document(bot_token, full_update, message):
@@ -158,13 +158,13 @@ def handle_document(bot_token, full_update, message):
         }
 
     yioip = get_user_status(bot_token, chat_id)
-    client.send_message(bot_token, chat_id, f"User status: {yioip}")
+    #client.send_message(bot_token, chat_id, f"User status: {yioip}")
 
     if "status" in yioip and yioip.get("status") == "awaiting_file_upload":
-        client.send_message(bot_token, chat_id, f"Calling Bot server.!")
+        #client.send_message(bot_token, chat_id, f"Calling Bot server.!")
         BotServer.add_file(bot_token, full_update)
 
-    client.send_message(bot_token, chat_id, f"Received document: {file_name}\nfile_id: {file_id}")
+    #client.send_message(bot_token, chat_id, f"Received document: {file_name}\nfile_id: {file_id}")
 def handle_callback_query(bot_token,full_update):
     query = full_update['callback_query']
     chat_id = query['message']['chat']['id']
