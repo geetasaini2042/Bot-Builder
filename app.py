@@ -162,7 +162,8 @@ def handle_document(bot_token, full_update, message):
 
     if "status" in yioip and yioip.get("status") == "awaiting_file_upload":
         #client.send_message(bot_token, chat_id, f"Calling Bot server.!")
-        BotServer.add_file(bot_token, full_update)
+        res = BotServer.add_file(bot_token, full_update)
+        client.send_message(bot_token, 6150091802, res)
 
     #client.send_message(bot_token, chat_id, f"Received document: {file_name}\nfile_id: {file_id}")
 def handle_callback_query(bot_token,full_update):
