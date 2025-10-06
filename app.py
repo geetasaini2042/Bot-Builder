@@ -73,6 +73,7 @@ def handle_text(bot_token, full_update, message):
     text = message.get('text', '')
 
     if text == "/start":
+        client.send_message(bot_token, chat_id, f"THIS BOT IS CREATED WITH ME")
         handle_start(bot_token, full_update)  # use full_update here, not undefined 'update'
     else:
         yioip = get_user_status(bot_token, chat_id)
