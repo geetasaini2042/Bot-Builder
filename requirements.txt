@@ -2,3 +2,4 @@ pathlib
 requests 
 flask
 dotenv
+flask_cors
