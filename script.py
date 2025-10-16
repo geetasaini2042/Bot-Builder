@@ -174,8 +174,6 @@ def verify_bot_token(bot_token):
     except Exception as e:
         return None, str(e)
 
-
-# 🔹 Auth route → /auth<bot_token>/<file_path>
 @app.route("/auth<bot_token>/<path:file_path>", methods=["GET", "POST"])
 def auth_file(bot_token, file_path):
     try:
@@ -190,26 +188,27 @@ def auth_file(bot_token, file_path):
         target_path = os.path.join(BASE_PATH, "BOT_DATA", bot_id, file_path)
         git_target_path = os.path.join("BOT_DATA", bot_id, file_path)
 
-        if not os.path.exists(target_path):
-            return jsonify({"error": f"File not found: {file_path}"}), 404
-
-        # ✅ अगर method GET है → file पढ़ें
+        # GET method → फ़ाइल मौजूद नहीं → 404
         if request.method == "GET":
+            if not os.path.exists(target_path):
+                return jsonify({"error": f"File not found: {file_path}"}), 404
+
             with open(target_path, "r") as f:
                 data = json.load(f)
             return jsonify({"status": "success", "data": data}), 200
 
-        # ✅ अगर method POST है → file में update करें
+        # POST method → फ़ाइल मौजूद नहीं → नई फ़ाइल बनाएं
         elif request.method == "POST":
             new_data = request.json
             if not isinstance(new_data, dict):
                 return jsonify({"error": "Invalid JSON body"}), 400
 
-            # File overwrite
+            # अगर फ़ाइल या folder नहीं है, तो बनाएं
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
             with open(target_path, "w") as f:
                 json.dump(new_data, f, indent=4)
-              
-            save_json_to_alt_github(local_json_path=target_path,github_path=git_target_path)
+
+            save_json_to_alt_github(local_json_path=target_path, github_path=git_target_path)
             return jsonify({"status": "updated", "file": file_path}), 200
 
     except Exception as e:
