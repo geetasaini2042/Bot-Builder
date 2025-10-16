@@ -50,7 +50,7 @@ def load_json_file(path: str):
         with open(path, "r") as f:
             return json.load(f)
     except Exception as e:
-        print(f"⚠ JSON लोड error ({path}):", e)
+        #print(f"⚠ JSON लोड error ({path}):", e)
         return {}
 
 
@@ -65,7 +65,7 @@ class StatusFilter(Filter):
         user_id = user.get("id")
 
         if not bot_token or not user_id:
-            print("⚠ bot_token या user_id नहीं मिला:", msg)
+            #print("⚠ bot_token या user_id नहीं मिला:", msg)
             return False
 
         status_file = get_status_file(bot_token)
@@ -75,6 +75,7 @@ class StatusFilter(Filter):
         required = str(self.required_status).strip()
 
         # 🟢 Debug prints
+        """
         print("───────────── DEBUG: StatusFilter ─────────────")
         print(f"📁 Status File: {status_file}")
         print(f"📄 File Data: {json.dumps(data, indent=2)}")
@@ -82,11 +83,11 @@ class StatusFilter(Filter):
         print(f"🎯 Required: '{required}'")
         print(f"💾 Current: '{user_status}'")
         print("─────────────────────────────────────────────")
-
+        """
         # Compare logic
         if user_status.startswith(required):
-            print("✅ Status match हो गया!")
+            #print("✅ Status match हो गया!")
             return True
         else:
-            print("❌ Status match नहीं हुआ.")
+            #print("❌ Status match नहीं हुआ.")
             return False

@@ -10,7 +10,7 @@ DEFAULT_JSON = {
     "data": {
         "id": "root",
         "name": "Root",
-        "description": "Welcome to UPSC STUDY Bot!",
+        "description": "Welcome to Bot!",
         "type": "folder",
         "created_by": 6150091802,
         "parent_id": None,
@@ -21,12 +21,6 @@ DEFAULT_JSON = {
 
 
 def ADMINS(bot_id: str) -> list:
-    """
-    Load admins from BOT_DATA/{bot_id}/ADMINS.json.
-    
-    Returns:
-        List of user IDs (owner + admin). Empty list if file not found or invalid.
-    """
     admin_file = BASE_PATH / "BOT_DATA" / bot_id / "ADMINS.json"
 
     if not admin_file.exists():

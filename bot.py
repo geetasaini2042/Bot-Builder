@@ -7,6 +7,7 @@ from script import app, polling_loop
 import handlers, callback_data
 import callback_data
 from common_data import IS_TERMUX
+from github import download_bots_from_github
 # ============================
 #   HANDLERS
 # ============================
@@ -53,4 +54,5 @@ if __name__ == "__main__":
     if IS_TERMUX:
         polling_loop()  # Termux mode में webhook की जगह polling
     else:
+        download_bots_from_github()
         app.run(host="0.0.0.0", port=8000)

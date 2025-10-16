@@ -1,7 +1,7 @@
 import requests, threading, re, os, json, uuid
 from flask import jsonify
 from pathlib import Path
-from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH
+from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH,BOTS_JSON_PATH
 from typing import Optional
 # ============================
 #   FILTER SYSTEM
@@ -164,10 +164,24 @@ def send_message(bot_token, chat_id, text):
 
 def handle_webhook_request(bot_token, update):
     """Return immediate OK & start background thread"""
-    import threading
+    
+    # 🔹 bots.json लोड करें
+    try:
+        with open(BOTS_JSON_PATH, "r", encoding="utf-8") as f:
+            bots_data = json.load(f)
+    except FileNotFoundError:
+        return jsonify({"error": "data not found"}), 500
+    except json.JSONDecodeError:
+        return jsonify({"error": "invalid data format"}), 500
+
+    # 🔹 चेक करें कि token bots.json में है या नहीं
+    authorized = any(bot_info.get("bot_token") == bot_token for bot_info in bots_data.values())
+    if not authorized:
+        return jsonify({"error": "unauthorized token"}), 401
+
+    # 🔹 अगर टोकन वैध है तो बैकग्राउंड में प्रोसेस करें
     threading.Thread(target=process_update, args=(bot_token, update), daemon=True).start()
     return jsonify({"status": "ok"}), 200
-    
     
     
 # framework.py
@@ -366,12 +380,7 @@ def process_update(bot_token: str, update: dict):
 #   WEBHOOK ENTRY POINT
 # ============================
 
-def handle_webhook_request(bot_token: str, update: dict):
-    """Respond fast & process update in background"""
-    threading.Thread(target=process_update, args=(bot_token, update), daemon=True).start()
-    return jsonify({"status": "ok"}), 200
-    
-    
+
 # framework.py या अलग helpers.py में रखें
 
 class InlineKeyboardButton:

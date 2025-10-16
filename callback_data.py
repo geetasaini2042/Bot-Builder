@@ -10,16 +10,42 @@ from framework import (
 from collections import defaultdict
 import time
 from pathlib import Path
-from common_data import BASE_PATH
-from script import get_bot_folder
+from common_data import BASE_PATH,BASE_URL
+from script import get_bot_folder, get_is_monetized
 from status_filters import StatusFilter
 from framework import InlineKeyboardButton, InlineKeyboardMarkup, escape_markdown
 from folder_utils import generate_folder_keyboard
+from save_file_to_alt_github import save_json_to_alt_github
+
+
 def get_status_file(bot_token: str) -> str:
     return os.path.join(get_bot_folder(bot_token), "status_user.json")
 
 def get_temp_folder(bot_token: str) -> str:
     return os.path.join(get_bot_folder(bot_token), "temp_folder.json")
+
+def get_more_contents_file(bot_token: str) -> str:
+    return os.path.join(get_bot_folder(bot_token), "FILE_OTHER.json")
+
+def get_file_log_id(bot_token: str) -> int | None:
+    # 🔹 FILE_LOG.json का path प्राप्त करें
+    file_path = os.path.join(get_bot_folder(bot_token), "FILE_LOG.json")
+
+    # 🔹 अगर फ़ाइल नहीं है तो कुछ भी return न करें
+    if not os.path.exists(file_path):
+        return None
+
+    try:
+        # 🔹 JSON फ़ाइल पढ़ें
+        with open(file_path, "r") as f:
+            data = json.load(f)
+
+        # 🔹 FILE_LOGS key से वैल्यू निकालें (अगर नहीं है तो None लौटे)
+        return data.get("FILE_LOGS")
+
+    except Exception as e:
+        print(f"❌ Error reading FILE_LOG.json: {e}")
+        return None
 def get_pre_files_file(bot_token: str) -> str:
     return os.path.join(get_bot_folder(bot_token), "PREMIUM_PDF.json")
 def get_temp_file(bot_token: str) -> str:
@@ -57,47 +83,7 @@ def get_created_by_from_folder(bot_token,folder_id):
 # ------------------------------
 #   File Utilities
 # ------------------------------
-"""
-def send_message(bot_token: str, chat_id: int, text: str, reply_markup=None):
 
-    def _send():
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text}
-
-        # If reply_markup is InlineKeyboardMarkup object, convert to dict
-        if reply_markup:
-            if hasattr(reply_markup, "to_dict"):
-                payload["reply_markup"] = reply_markup.to_dict()
-            else:
-                payload["reply_markup"] = reply_markup
-
-        try:
-            requests.post(url, json=payload, timeout=3)
-        except Exception as e:
-            print("HTTP post error:", e)
-
-    import threading
-    threading.Thread(target=_send, daemon=True).start()
-    
-def edit_message_text(bot_token: str, chat_id: int, message_id: int, text: str, reply_markup=None):
-    def _edit():
-        url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
-        payload = {"chat_id": chat_id, "message_id": message_id, "text": text}
-
-        if reply_markup:
-            if hasattr(reply_markup, "to_dict"):
-                payload["reply_markup"] = reply_markup.to_dict()
-            else:
-                payload["reply_markup"] = reply_markup
-
-        try:
-            requests.post(url, json=payload, timeout=3)
-        except Exception as e:
-            print("HTTP post error:", e)
-
-    import threading
-    threading.Thread(target=_edit, daemon=True).start()
-"""
 def load_json_file(path: str) -> dict:
     if not os.path.exists(path):
         with open(path, "w") as f:
@@ -171,12 +157,7 @@ def is_user_action_allowed(folder_id, action, bot_token):
 # 🧠 Callback: Add Folder
 
 def ADMINS(bot_id: str) -> list:
-    """
-    Load admins from BOT_DATA/{bot_id}/ADMINS.json.
-    
-    Returns:
-        List of user IDs (owner + admin). Empty list if file not found or invalid.
-    """
+
     admin_file = Path(BASE_PATH) / "BOT_DATA" / bot_id / "ADMINS.json"
 
     if not admin_file.exists():
@@ -481,6 +462,8 @@ def confirm_and_save_folder(bot_token, update, cq):
     status_data = load_json_file(status_file)
     status_data.pop(user_id, None)
     save_json_file(status_file, status_data)
+    git_data_file= f"BOT_DATA/{bot_id}/bot_data.json"
+    save_json_to_alt_github(data_file_path,git_data_file)
 
     # ---------------------------
     # Generate keyboard
@@ -544,7 +527,7 @@ def add_url_callback(bot_token, update, cq):
     # ---------------------------
     chat_id = cq.get("message", {}).get("chat", {}).get("id")
     message_id = cq.get("message", {}).get("message_id")
-    edit_message_text(bot_token, chat_id, message_id, "📌 कृपया URL का नाम भेजें (जैसे: 'NCERT Site')")
+    edit_message_text(bot_token, chat_id, message_id, "Please Send a title for your URL (Example: 'Click Here')")
 
     # Acknowledge callback
     answer_callback_query(bot_token, callback_id)
@@ -579,8 +562,21 @@ def receive_url_name(bot_token, update, msg):
     # Send reply
     # ---------------------------
     chat_id = msg["chat"]["id"]
-    send_message(bot_token, chat_id, "🔗 अब URL भेजें (जैसे: https://...)")
-    
+    send_message(bot_token, chat_id, "Now Send a valid URL (Example: https://...)")
+
+def get_owner_id(bot_token: str) -> str:
+    bot_id = bot_token.split(":")[0]
+    file_path = f"{BASE_PATH}/BOT_DATA/{bot_id}/ADMINS.json"
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            owner_ids = data.get("owner", [])
+            if not owner_ids:
+                return None  # अगर owner key खाली या missing है
+            return owner_ids[0]  # पहला owner ID return करेगा
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return None    
 @on_message(filters.private() & filters.text() & StatusFilter("getting_url:"))
 def receive_url(bot_token, update, msg):
     user_id = str(msg["from"]["id"])
@@ -591,7 +587,7 @@ def receive_url(bot_token, update, msg):
     # ---------------------------
     keyboard = [[{"text": "🌐 Checking url", "url": url}]]
     try:
-        send_with_error_message(bot_token, 6150091802, "🧩 Url Button:", reply_markup={"inline_keyboard": keyboard})
+        send_with_error_message(bot_token, int(get_owner_id(bot_token)), "🧩 Url Button:", reply_markup={"inline_keyboard": keyboard})
     except Exception:
         chat_id = msg["chat"]["id"]
         send_message(bot_token, chat_id, "❌ Please send a valid and reachable URL.")
@@ -618,7 +614,7 @@ def receive_url(bot_token, update, msg):
     # Prompt user for caption
     # ---------------------------
     chat_id = msg["chat"]["id"]
-    send_message(bot_token, chat_id, "📝 अब उसके लिए एक caption भेजें।")
+    send_message(bot_token, chat_id, f"Now send a caption for your URL :\n{url}\n (Example: This is a demo caption)")
     
 @on_message(filters.private() & filters.text() & StatusFilter("getting_caption_url:"))
 def receive_url_caption(bot_token, update, msg):
@@ -626,6 +622,7 @@ def receive_url_caption(bot_token, update, msg):
     text = msg.get("text", "").strip()
     caption = escape_markdown(text)  # framework function
     data_file_path=get_data_file(bot_token)
+    bot_id= bot_token.split(":")[0]
     # ---------------------------
     # Load temp URL data
     # ---------------------------
@@ -675,6 +672,8 @@ def receive_url_caption(bot_token, update, msg):
     status_data = load_json_file(get_status_file(bot_token)) or {}
     status_data.pop(user_id, None)
     save_json_file(get_status_file(bot_token), status_data)
+    git_data_file= f"BOT_DATA/{bot_id}/bot_data.json"
+    save_json_to_alt_github(data_file_path,git_data_file)
 
     # ---------------------------
     # Generate keyboard and reply
@@ -733,7 +732,7 @@ def edit_menu_handler(bot_token, update, callback_query):
         bot_token,
         chat_id=callback_query["message"]["chat"]["id"],
         message_id=callback_query["message"]["message_id"],
-        text="🛠 Select an item to edit:",
+        text="🛠 Select an item to edit:\n\nPlease send a /update command to save data after you edits.",
         reply_markup={"inline_keyboard": buttons}
     )
 
@@ -791,7 +790,7 @@ def edit_item_handler(bot_token, update, callback_query):
         bot_token,
         chat_id=callback_query["message"]["chat"]["id"],
         message_id=callback_query["message"]["message_id"],
-        text=f"🧩 Edit Options for: {item.get('name', 'Unnamed')}",
+        text=f"🧩 Edit Options for: {item.get('name', 'Unnamed')}\n\nPlease send a /update command to save data after you edits.",
         reply_markup={"inline_keyboard": buttons}
     )
 
@@ -858,7 +857,7 @@ def edit1_item1_handler(bot_token, update, callback_query):
         bot_token,
         chat_id=callback_query["message"]["chat"]["id"],
         message_id=callback_query["message"]["message_id"],
-        text="🛠 What would you like to do?",
+        text="🛠 What would you like to do?\n\nPlease send a /update command to save data after you edits.",
         reply_markup={"inline_keyboard": buttons}
     )
 #@on_callback_query(filters.callback_data("^edit1_item1:"))    
@@ -925,7 +924,7 @@ def update_created_by_handler(bot_token, update, callback_query):
         json.dump(data_json, f, indent=2)
 
     # ✅ Success message
-    answer_callback_query(bot_token, callback_query["id"], "✅ Ownership updated successfully.", True)
+    answer_callback_query(bot_token, callback_query["id"], "✅ Ownership updated successfully.\n\nPlease send a /update command to save data after you edits.", True)
     print("Transfered")
 
     # 🔘 Updated folder view
@@ -995,8 +994,8 @@ def update_description_prompt(bot_token, update, query):
         bot_token,
         query["message"]["chat"]["id"],
         query["message"]["message_id"],
-        f"📝 कृपया इस फ़ोल्डर का नया विवरण भेजें।\n\n"
-        f"📄 *मौजूदा विवरण:*\n`{current_description}`"
+        f"Please Send a New Description:\n\n"
+        f"*Current Description*\n`{current_description}`\n\nPlease send a /update command to save data after you edits."
     )
 
 # ✅ Webhook-based version of updating description
@@ -1074,7 +1073,7 @@ def receive_new_description(bot_token, update, msg):
     send_message(
         bot_token,
         user_id,
-        f"📝 *Description updated successfully!*\n\n{formatted}",
+        f"📝 *Description updated successfully!*\n\n{formatted}\n\nPlease send a /update command to save data after you edits.",
         reply_markup=kb
     )
 
@@ -1139,7 +1138,7 @@ def rename_item_callback(bot_token, update, callback_query):
         bot_token,
         chat_id=message["chat"]["id"],
         message_id=message["message_id"],
-        text=f"📝 Please send the new name for this item.\n\n📄 *Current Name*:\n`{current_name}`"
+        text=f"📝 Please send the new name for this item.\n\n📄 *Current Name*:\n`{current_name}`\n\nPlease send a /update command to save data after you edits."
     )
 
 @on_message(filters.private() & filters.text() & StatusFilter("renaming:"))
@@ -1206,7 +1205,7 @@ def rename_text_handler(bot_token, update, msg):
         json.dump(status_data, f, indent=2)
 
     kb = generate_folder_keyboard(folder, int(user_id), bot_id)
-    send_message(bot_token, user_id, "✅ Name Renamed", reply_markup=kb)
+    send_message(bot_token, user_id, "✅ Name Renamed\n\nPlease send a /update command to save data after you edits.", reply_markup=kb)
 
 @on_callback_query(filters.callback_data("^delete:"))
 def delete_item_confirm(bot_token, update, callback_query):
@@ -1314,7 +1313,7 @@ def delete_item_final(bot_token, update, msg):
         json.dump(status_data, f, indent=2)
 
     kb = generate_folder_keyboard(folder, int(user_id), bot_id)
-    send_message(bot_token, user_id, "✅ Item deleted", reply_markup=kb)
+    send_message(bot_token, user_id, "✅ Item deleted\n\nPlease send a /update command to save data after you edits.", reply_markup=kb)
     
 @on_callback_query(filters.callback_data("^move_menu:"))
 def move_menu_handler(bot_token, update, callback_query):
@@ -1400,7 +1399,7 @@ def move_menu_handler(bot_token, update, callback_query):
         bot_token,
         chat_id=message["chat"]["id"],
         message_id=message["message_id"],
-        text="🔄 Move the selected item (♻️):",
+        text="🔄 Move the selected item (♻️):\n\nPlease send a /update command to save data after you edits.",
         reply_markup=InlineKeyboardMarkup(grid)
     )
 def load_data(bot_token):
@@ -1758,7 +1757,7 @@ def add_webapp_callback(bot_token, update, callback_query):
 
     edit_message_text(bot_token, callback_query["message"]["chat"]["id"],
                       callback_query["message"]["message_id"],
-                      "📌 कृपया web app URL का नाम भेजें (जैसे: 'NCERT Site')")
+                      "Please send a title for your web app (Example : 'OPEN APP')")
 
 
 @on_message(filters.private()  & filters.text()  & StatusFilter("getting_webapp_name"))
@@ -1789,7 +1788,7 @@ def receive_webapp_name(bot_token, update, message):
     with open(status_user_file, "w") as f:
         json.dump(status_data, f)
 
-    send_message(bot_token, message["chat"]["id"], "🔗 अब URL भेजें (जैसे: https://...)")
+    send_message(bot_token, message["chat"]["id"], "Now send a url of your webapp (Example : https://...)")
     
 @on_message(filters.private()  & filters.text()  & StatusFilter("getting_webapp"))
 def receive_webapp(bot_token, update, message):
@@ -1802,7 +1801,7 @@ def receive_webapp(bot_token, update, message):
     }
 
     try:
-        send_with_error_message(bot_token, 6150091802, "🧩 WebApp Button:", reply_markup=keyboard)
+        send_with_error_message(bot_token, int(get_owner_id(bot_token)), "🧩 WebApp Button:", reply_markup=keyboard)
     except Exception:
         return send_message(bot_token, message["chat"]["id"], "❌ Please send a valid and reachable URL.")
 
@@ -1830,7 +1829,7 @@ def receive_webapp(bot_token, update, message):
     with open(status_user_file, "w") as f:
         json.dump(status_data, f)
 
-    send_message(bot_token, message["chat"]["id"], "📝 अब उसके लिए एक caption भेजें।")
+    send_message(bot_token, message["chat"]["id"], "Now send a caption for your Webapp.")
 
 
 @on_message(filters.private()  & filters.text()  & StatusFilter("getting_caption_webapp"))
@@ -1894,6 +1893,8 @@ def receive_webapp_caption(bot_token, update, message):
 
     # Send confirmation
     chat_id = message["chat"]["id"]
+    git_data_file= f"BOT_DATA/{bot_id}/bot_data.json"
+    save_json_to_alt_github(data_file,git_data_file)
     #send_message(bot_token, chat_id, "🧩 WebApp सफलतापूर्वक जोड़ा गया ✅")
     kb = generate_folder_keyboard(parent, int(user_id), bot_id)
     send_message(bot_token, chat_id, "🧩 WebApp सफलतापूर्वक जोड़ा गया ✅", reply_markup=kb)
@@ -1953,7 +1954,7 @@ def add_file_callback(bot_token,update, callback_query):
     # 📨 Edit message to ask user
     chat_id = callback_query["message"]["chat"]["id"]
     message_id = callback_query["message"]["message_id"]
-    edit_message_text(bot_token, chat_id, message_id, "📎 कृपया डॉक्युमेंट भेजें...")
+    edit_message_text(bot_token, chat_id, message_id, "Please Send Document(s)..")
 def get_new_file_id_from_resp(resp: dict):
     # resp is Telegram API JSON response: {"ok": True, "result": { ... message ...}}
     if not resp or not resp.get("ok"):
@@ -1988,6 +1989,22 @@ def get_new_file_id_from_resp(resp: dict):
 
 
 
+def get_file_channel_id(bot_token: str) -> str:
+    bot_id = bot_token.split(":")[0]
+    file_path = f"{BASE_PATH}/BOT_DATA/{bot_id}/ADDITIONAL_DATA.json"
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            file_channel_id = data.get("FILE_CHANNEL_ID", None)
+            if file_channel_id:
+              print(file_channel_id)
+              return file_channel_id  # अगर key missing है तो None return होगा
+            print("NON")
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
+        return None
+        
 @on_message(filters.private() & StatusFilter("waiting_file_doc") & (filters.document() | filters.photo() | filters.video() | filters.audio()))
 def receive_any_media(bot_token, update, msg):
     """
@@ -2046,7 +2063,10 @@ def receive_any_media(bot_token, update, msg):
         if not original_file_id:
             send_message(bot_token, msg["chat"]["id"], "❌ Supported media not found.")
             return
-        FILE_LOGS = -1003131824668
+        FILE_LOGS = get_file_channel_id(bot_token)
+        if not FILE_LOGS:
+          send_message(bot_token, msg["chat"]["id"], "You haven't added a database channel yet. Please add a database channel first.\nTo add a database channel please visit the bot @BotixHubBot")
+          return
         # forward/save to FILE_LOGS chat to get persistent file_id
         # FILE_LOGS should be defined (chat id)
         print(original_file_id)
@@ -2062,7 +2082,7 @@ def receive_any_media(bot_token, update, msg):
         new_file_id = get_new_file_id_from_resp(resp)
         print(new_file_id)
         if not new_file_id:
-            send_message(bot_token, msg["chat"]["id"], "❌ Failed to process file, try again.")
+            send_message(bot_token, msg["chat"]["id"], f"You haven't added me in database channel as admin. Please add me as a admin in database channel\n\nCHANNEL ID: {FILE_LOGS}\n\nIf you Want to change this database channel please visit bot @BotixHubBot")
             return
 
         caption = msg.get("caption") or file_name
@@ -2646,9 +2666,9 @@ def confirm_file_callback(bot_token, update, callback_query):
     data = callback_query.get("data", "")
     parts = data.split(":", 1)
     bot_id = bot_token.split(":")[0]
-    print("hek pankaj")
-    print(bot_id)
-    print(f"parts □ {parts} □")
+    #print("hek pankaj")
+    #print(bot_id)
+    #print(f"parts □ {parts} □")
   
     if len(parts) < 2:
         print("INVALID")
@@ -2663,18 +2683,18 @@ def confirm_file_callback(bot_token, update, callback_query):
 
     # load temp file for this bot
     temp_file = get_temp_file(bot_token)
-    print(f"hi □ {temp_file} □")
+    #print(f"hi □ {temp_file} □")
     try:
         with open(temp_file, "r") as f:
             temp_data = json.load(f)
     except Exception as e:
-        print("confirm_file: could not open temp file:", e)
+        #print("confirm_file: could not open temp file:", e)
         return answer_callback_query(bot_token, callback_id, "❌ Temp file data not found.", True)
-    print(f"temp_data □ {temp_data} □")
+    #print(f"temp_data □ {temp_data} □")
     user_files = temp_data.get(user_id, {}).get("files", {})
     file_data = user_files.get(file_uuid)
     if not file_data:
-        print("File not found in tem")
+        #print("File not found in tem")
         return answer_callback_query(bot_token, callback_id, "❌ File not found in temp.", True)
 
     # determine target folder
@@ -2795,6 +2815,8 @@ def confirm_file_callback(bot_token, update, callback_query):
     status_data.pop(user_id, None)
     with open(status_file, "w") as f:
         json.dump(status_data, f, indent=2)
+    git_data_file= f"BOT_DATA/{bot_id}/bot_data.json"
+    save_json_to_alt_github(data_file,git_data_file)
 
     # refresh UI: edit caption to wait then success
     msg = callback_query.get("message", {})
@@ -2819,10 +2841,6 @@ def confirm_file_callback(bot_token, update, callback_query):
         
 @on_callback_query(filters.callback_data("^file:"))
 def send_file_from_json(bot_token, update, callback_query):
-    """
-    Webhook-style handler for showing/sending a file stored in bot_data.
-    callback_query: dict from Telegram webhook
-    """
     try:
         callback_id = callback_query.get("id")
         data = callback_query.get("data", "") or ""
@@ -2894,10 +2912,11 @@ def send_file_from_json(bot_token, update, callback_query):
         created_by = file_data.get("created_by")
         protect = visibility == "private"
         premium_owner = file_data.get("premium_owner")  # may be None or int
+        owner_id = int(get_owner_id(bot_token))
 
         # Unlock base url (used by unlock flow)
-        deploy = DEPLOY_URL.rstrip("/") if globals().get("DEPLOY_URL") else ""
-        unlock_base_url = deploy + "/unlock_file"
+        deploy = BASE_URL.rstrip("/") if globals().get("BASE_URL") else ""
+        unlock_base_url = deploy + f"/{bot_id}/unlock_file"
 
         # Helper to send media via send_api for arbitrary sub_type with protect_content support
         def send_media_api(bot_token_, chat_id_, sub_type_, file_id_, caption_, reply_markup=None, protect_content=False):
@@ -2935,7 +2954,8 @@ def send_file_from_json(bot_token, update, callback_query):
             try:
                 # Send a copy to PREMIUM_CHECK_LOG to get file_size etc.
                 #premium_chat = PREMIUM_CHECK_LOG
-                premium_chat = -1003131824668
+              if get_is_monetized(bot_id):
+                premium_chat = get_file_channel_id(bot_token)
                 resp = send_media_api(bot_token, premium_chat, sub_type, file_id, caption, reply_markup=None, protect_content=False)
                 # extract file size
                 file_size = None
@@ -2958,7 +2978,7 @@ def send_file_from_json(bot_token, update, callback_query):
                 base_unlock = "https://reward.edumate.life/Premium/unlock.html?"
                 # if premium_owner, use different unlock endpoint
                 if premium_owner:
-                    unlock_base_url = deploy + "/unlock_users_file"
+                    unlock_base_url = deploy + f"/{bot_id}/unlock_users_file"
 
                 unlock_params = (
                     f"uuid={urllib.parse.quote_plus(file_uuid)}"
@@ -2968,11 +2988,10 @@ def send_file_from_json(bot_token, update, callback_query):
                     f"&url={urllib.parse.quote_plus(unlock_base_url)}"
                 )
                 unlock_url = base_unlock + unlock_params
-
                 # Build unlock message
                 if premium_owner and int(user_id) == int(premium_owner):
                     unlock_msg = (
-                        f"**Hello Partner**,  \nYou are Making Money by this file.\n\n"
+                        f"**Hello Partner**,\nYou are Making Money by this file.\n\n"
                         f"**📁 Name:** `{escape_markdown(str(name))}`  \n"
                         f"**📝 Description:** `{escape_markdown(str(caption))}`  \n"
                         f"**📦 Size:** `{readable_size}`  \n"
@@ -3006,6 +3025,11 @@ def send_file_from_json(bot_token, update, callback_query):
                 send_media_api(bot_token, chat_id, sub_type, file_id, unlock_msg, reply_markup=kb, protect_content=False)
                 answer_callback_query(bot_token, callback_id)
                 return
+              else: 
+                premium_chat = get_file_channel_id(bot_token)
+                resp = send_media_api(bot_token, owner_id, sub_type, file_id, "Someone Accessed your VIP file.\n\nBut your bot is not Monetized yet.\nPlease Monetize your bot to enable ad and earn money.\n\nTo Monetize your bot visit bot @BotixHubBot", reply_markup=None, protect_content=False)
+                resp = send_media_api(bot_token, premium_chat, sub_type, file_id, "This file is a vip file. But your bot is not Monetized yet.\nPlease Monetize your bot to enable ad and earn money.\n\nTo Monetize your bot visit bot @BotixHubBot", reply_markup=None, protect_content=False)
+                
             except Exception as e:
                 print("send_file_from_json VIP error:", e)
                 answer_callback_query(bot_token, callback_id)
@@ -3054,6 +3078,7 @@ def edit_item_file_handler(bot_token, update, callback_query):
     callback_query: dict from Telegram webhook
     """
     callback_id = callback_query.get("id")
+    #print(callback_query)
     data = callback_query.get("data", "") or ""
     parts = data.split(":")
     bot_id = bot_token.split(":")[0]
@@ -3093,6 +3118,7 @@ def edit_item_file_handler(bot_token, update, callback_query):
 
     # find file item inside folder
     file_data = next((i for i in folder.get("items", []) if i.get("id") == file_uuid), None)
+    #print(f"F8ledgyd: {file_data}")
     if not file_data:
         return answer_callback_query(bot_token, callback_id, "❌ File not found.", True)
 
@@ -3123,10 +3149,14 @@ def edit_item_file_handler(bot_token, update, callback_query):
     # acknowledge callback (remove spinner) then edit
     answer_callback_query(bot_token, callback_id)
     if chat_id and message_id:
-        edit_message_text(bot_token, chat_id, message_id, text, reply_markup=kb)
+        a= edit_message(bot_token, chat_id, message_id, text, reply_markup=kb, is_caption=True)
+        print("edit")
+        print(a)
     else:
         # fallback: send new message to user
-        send_message(bot_token, user_id, text, reply_markup=kb)
+        a= send_message(bot_token, user_id, text, reply_markup=kb)
+        print("here")
+        print(a)
 
 @on_callback_query()
 def edit_item_file_handler(bot_token, update, callback_query):
