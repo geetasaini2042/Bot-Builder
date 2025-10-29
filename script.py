@@ -2,7 +2,7 @@ from framework import (
     filters, on_message, on_callback_query,
     send_message, handle_webhook_request
 )
-from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH, BOTS_JSON_PATH, BASE_URL
+from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH, BOTS_JSON_PATH, BASE_URL,AUTH_KEY
 import os, time, threading, requests, json
 from flask import Flask, request, jsonify
 from pathlib import Path
@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from github import add_new_bot, download_bots_from_github  # ⚠️ इसे सही path से import करें
 from save_file_to_alt_github import save_json_to_alt_github
 from save_all_registered_bots import save_registered_bot_to_github
+from premium import save_a_premium
 
 app = Flask(__name__)
 CORS(app) 
@@ -88,7 +89,6 @@ def add_bot():
             bots_data[new_bot_id] = bots_data.pop(existing_bot_id)
             bots_data[new_bot_id]["bot_token"] = bot_token
             bots_data[new_bot_id]["webhook_url"] = webhook_url
-            # owner_id update करें
             bots_data[new_bot_id]["owner_id"] = owner_id
 
         else:
@@ -101,11 +101,13 @@ def add_bot():
                 "is_monetized": is_monetized,
                 "webhook_url": webhook_url
             }
+
             new_bot_data_dir = os.path.join(BASE_PATH, "BOT_DATA", new_bot_id)
+            os.makedirs(new_bot_data_dir, exist_ok=True)
 
             # 🔹 BOT_DATA/{BOT_ID}/bot_data.json बनाए
-            os.makedirs(new_bot_data_dir, exist_ok=True)
             bot_data_path = os.path.join(new_bot_data_dir, "bot_data.json")
+            git_bot_data_path = os.path.join("BOT_DATA", bot_id, "bot_data.json")
             if not os.path.exists(bot_data_path):
                 default_json = {
                     "data": {
@@ -122,7 +124,21 @@ def add_bot():
                 with open(bot_data_path, "w", encoding="utf-8") as f:
                     json.dump(default_json, f, indent=4, ensure_ascii=False)
 
-        # 🔹 लोकल bots.json में सेव करें
+            # 🔹 BOT_DATA/{BOT_ID}/ADMINS.json बनाए
+            admins_json_path = os.path.join(new_bot_data_dir, "ADMINS.json")
+            git_admins_json_path = os.path.join("BOT_DATA", bot_id, "ADMINS.json")
+            save_a_premium(price=40, days=3, bot_id=bot_id)
+            premium_file = os.path.join(BASE_PATH, "BOT_DATA", bot_id, "premium.json")
+            git_premium_file = os.path.join("BOT_DATA", bot_id, "premium.json")
+            if not os.path.exists(admins_json_path):
+                admins_data = {
+                    "owner": [int(owner_id)],
+                    "admin": []
+                }
+                with open(admins_json_path, "w", encoding="utf-8") as f:
+                    json.dump(admins_data, f, indent=4, ensure_ascii=False)
+
+        # 🔹 bots.json सेव करें
         with open(BOTS_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(bots_data, f, indent=4, ensure_ascii=False)
 
@@ -136,6 +152,12 @@ def add_bot():
         bot_details = bots_data[new_bot_id]
         add_new_bot(new_bot_id, bot_details)
         save_registered_bot_to_github(owner_id, bot_username, new_bot_id)
+        # save data file to git
+        save_json_to_alt_github(local_json_path=bot_data_path, github_path=git_bot_data_path)
+        # Save owner to github
+        save_json_to_alt_github(local_json_path=admins_json_path, github_path=git_admins_json_path)
+        # Save premium file
+        save_json_to_alt_github(local_json_path=premium_file, github_path=git_premium_file)
 
         return jsonify({
             "status": "success",
@@ -146,6 +168,7 @@ def add_bot():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 def get_is_monetized(bot_id: str) -> bool:
     file_path = BOTS_JSON_PATH
@@ -163,6 +186,7 @@ def get_is_monetized(bot_id: str) -> bool:
     except Exception as e:
         print(f"Error reading {file_path}: {e}")
         return None
+        
 def verify_bot_token(bot_token):
     url = f"https://api.telegram.org/bot{bot_token}/getMe"
     try:
@@ -213,6 +237,40 @@ def auth_file(bot_token, file_path):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/add_premium/<auth_key>", methods=["GET"])
+def add_premium(auth_key):
+    # 🔒 Auth-Key Check
+    if auth_key != AUTH_KEY:
+        return jsonify({"status": False, "message": "❌ Invalid Auth-Key!"}), 401
+
+    # 🔍 Required params
+    bot_id = request.args.get("bot_id")
+    price = request.args.get("price", "free")
+    days = request.args.get("days", "3")
+
+    if not bot_id:
+        return jsonify({"status": False, "message": "⚠️ Missing bot_id!"}), 400
+
+    try:
+        days = int(days)
+    except:
+        return jsonify({"status": False, "message": "⚠️ Invalid days value!"}), 400
+
+    try:
+        # ✅ Save Premium
+        save_a_premium(price, days, bot_id)
+        return jsonify({
+            "status": True,
+            "message": "✅ Premium added successfully!",
+            "bot_id": bot_id,
+            "price": price,
+            "days": days
+        })
+    except Exception as e:
+        return jsonify({"status": False, "message": f"❌ Error: {str(e)}"}), 500
+        
+        
 @app.route("/edit<bot_token>/<path:file_path>", methods=["GET", "POST"])
 def edit_file_ui(bot_token, file_path):
     try:
@@ -223,10 +281,13 @@ def edit_file_ui(bot_token, file_path):
 
         bot_id = str(bot_info["id"])
         target_path = os.path.join(BASE_PATH, "BOT_DATA", bot_id, file_path)
+        string = str(target_path)
         git_target_path = os.path.join("BOT_DATA", bot_id, file_path)
 
         if not os.path.exists(target_path):
             return f"<h3 style='color:red;'>File not found: {file_path}</h3>", 404
+        if "premium.json" in string:
+          return f"<h3 style='color:red;'>file not allowed to be edit</h3>", 203
 
         # ✅ GET method → JSON content UI में दिखाओ
         if request.method == "GET":
@@ -354,6 +415,7 @@ def polling_loop():
             )
             res.raise_for_status()  # HTTP errors raise करें
             data = res.json()
+            #print(data)
 
             if data.get("ok") and "result" in data:
                 for update in data["result"]:

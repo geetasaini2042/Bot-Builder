@@ -5,6 +5,7 @@ from framework import on_callback_query, filters, edit_message_text, answer_call
 from folder_utils import process_open_callback
 from script import get_bot_folder
 from common_data import BASE_PATH
+from premium import has_active_premium
 # ============================
 # /start HANDLER
 # ============================
@@ -101,11 +102,12 @@ def send_telegram_message123(bot_token: str, chat_id: int, text: str, parse_mode
 def start_handler(bot_token, update, message):
     chat_id = message["chat"]["id"]
     user_id = message["from"]["id"]
+    bot_id = bot_token.split(":")[0]
 
     keyboard_dict, description = get_root_inline_keyboard(bot_token, user_id)
     full_name = message["from"].get("first_name", "") + " " + message["from"].get("last_name", "")
     username = message["from"].get("username", "")
-
+    is_premium = has_active_premium(bot_id)
     user_data = {
         "user_id": user_id,
         "chat_id": chat_id,
@@ -123,6 +125,18 @@ def start_handler(bot_token, update, message):
         "reply_markup": keyboard_dict
     }
     requests.post(url, json=payload, timeout=2)
+    if not is_premium:
+      admins_dict = ADMINS(bot_id)
+      owners = admins_dict["owners"]
+      if user_id not in owners:
+        text= "This bot was made using @BotIxHubBot"
+      else:
+        text= "This bot was made using @BotIxHubBot.\n\nTo remove this tag Please Switch to premium.\nVisit the bot now: @BotIxHubBot"
+      payload = {
+        "chat_id": chat_id,
+        "text": text
+    }
+      requests.post(url, json=payload, timeout=2)
     save_new_user(bot_token, user_data)
 
 @on_callback_query(filters.callback_data("^open:"))

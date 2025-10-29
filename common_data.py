@@ -9,3 +9,4 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:8000") #without last /
 API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 BOTS_JSON_PATH = os.path.join(BASE_PATH, "bots.json")
+AUTH_KEY = os.getenv("AUTH_KEY", "httpappxapi")
