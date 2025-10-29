@@ -45,35 +45,49 @@ def has_active_premium(bot_id):
     # अगर कोई भी active नहीं मिला
     return False
     
-def save_a_premium(price, days, bot_id):
+import os, json, pytz, uuid
+from datetime import datetime, timedelta
+
+def save_a_premium(price, days, bot_id, plan_id=None):
     """
     Save a new premium plan for the bot.
+    Avoid duplicate saves using plan_id.
     Automatically starts after current active premium (if any).
     """
 
-    # File path
+    # ✅ File path
     premium_file = os.path.join(BASE_PATH, "BOT_DATA", bot_id, "premium.json")
     os.makedirs(os.path.dirname(premium_file), exist_ok=True)
 
-    # Load existing premium data
+    # ✅ Load existing premium data
     try:
         with open(premium_file, "r") as f:
             data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         data = []
 
-    # Indian timezone
+    # ✅ If no plan_id provided, generate new one
+    if plan_id is None:
+        plan_id = str(uuid.uuid4())
+
+    # ⚠️ Check for duplicate plan_id
+    for entry in data:
+        if entry.get("plan_id") == plan_id:
+            print(f"⚠️ Duplicate plan detected for bot {bot_id}, skipping save.")
+            return entry  # Return existing entry
+
+    # 🕒 Timezone setup
     india_tz = pytz.timezone("Asia/Kolkata")
     now = datetime.now(india_tz)
 
-    # Get last active premium (if exists)
+    # 🔍 Get last active premium (if exists)
     active_premium = None
     for entry in data:
         expire = india_tz.localize(datetime.strptime(entry["expire_date_and_time"], "%Y-%m-%d %H:%M:%S"))
         if expire > now:
             active_premium = entry
 
-    # Determine start and expire times
+    # 📅 Determine start and expire times
     if active_premium:
         start = india_tz.localize(datetime.strptime(active_premium["expire_date_and_time"], "%Y-%m-%d %H:%M:%S"))
     else:
@@ -81,8 +95,9 @@ def save_a_premium(price, days, bot_id):
 
     expire = start + timedelta(days=days)
 
-    # Prepare new entry
+    # 🆕 Prepare new entry
     new_entry = {
+        "plan_id": plan_id,
         "price": str(price),
         "days": days,
         "purchase_date_and_time": now.strftime("%Y-%m-%d %H:%M:%S"),
@@ -90,14 +105,12 @@ def save_a_premium(price, days, bot_id):
         "expire_date_and_time": expire.strftime("%Y-%m-%d %H:%M:%S")
     }
 
-    # Add to list
+    # ➕ Add and Save
     data.append(new_entry)
-
-    # Save updated data
     with open(premium_file, "w") as f:
         json.dump(data, f, indent=2)
 
-    print(f"✅ Premium plan saved for bot {bot_id}")
+    print(f"✅ Premium plan saved for bot {bot_id} (Plan ID: {plan_id})")
     return new_entry
 
 def get_premium_status(bot_id):
