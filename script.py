@@ -3,7 +3,7 @@ from framework import (
     send_message, handle_webhook_request
 )
 from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH, BOTS_JSON_PATH, BASE_URL,AUTH_KEY
-import os, time, threading, requests, json
+import os, time, threading, requests, json, uuid
 from flask import Flask, request, jsonify
 from pathlib import Path
 from flask_cors import CORS  # 🔹 Import CORS
@@ -79,17 +79,17 @@ def add_bot():
             old_bot_data_dir = os.path.join(BASE_PATH, "BOT_DATA", existing_bot_id)
             new_bot_data_dir = os.path.join(BASE_PATH, "BOT_DATA", new_bot_id)
 
-            # 🔹 अगर bot_id बदल गया है तो folder rename करें
-            if existing_bot_id != new_bot_id:
-                if os.path.exists(old_bot_data_dir):
-                    os.rename(old_bot_data_dir, new_bot_data_dir)
+            if existing_bot_id != new_bot_id and os.path.exists(old_bot_data_dir):
+                os.rename(old_bot_data_dir, new_bot_data_dir)
             else:
                 new_bot_data_dir = old_bot_data_dir
 
             bots_data[new_bot_id] = bots_data.pop(existing_bot_id)
-            bots_data[new_bot_id]["bot_token"] = bot_token
-            bots_data[new_bot_id]["webhook_url"] = webhook_url
-            bots_data[new_bot_id]["owner_id"] = owner_id
+            bots_data[new_bot_id].update({
+                "bot_token": bot_token,
+                "webhook_url": webhook_url,
+                "owner_id": owner_id
+            })
 
         else:
             # 🔹 नया bot add करें
@@ -107,7 +107,6 @@ def add_bot():
 
             # 🔹 BOT_DATA/{BOT_ID}/bot_data.json बनाए
             bot_data_path = os.path.join(new_bot_data_dir, "bot_data.json")
-            git_bot_data_path = os.path.join("BOT_DATA", bot_id, "bot_data.json")
             if not os.path.exists(bot_data_path):
                 default_json = {
                     "data": {
@@ -124,19 +123,21 @@ def add_bot():
                 with open(bot_data_path, "w", encoding="utf-8") as f:
                     json.dump(default_json, f, indent=4, ensure_ascii=False)
 
-            # 🔹 BOT_DATA/{BOT_ID}/ADMINS.json बनाए
+            # 🔹 ADMINS.json बनाए
             admins_json_path = os.path.join(new_bot_data_dir, "ADMINS.json")
-            git_admins_json_path = os.path.join("BOT_DATA", bot_id, "ADMINS.json")
-            save_a_premium(price=40, days=3, bot_id=bot_id)
-            premium_file = os.path.join(BASE_PATH, "BOT_DATA", bot_id, "premium.json")
-            git_premium_file = os.path.join("BOT_DATA", bot_id, "premium.json")
             if not os.path.exists(admins_json_path):
-                admins_data = {
-                    "owner": [int(owner_id)],
-                    "admin": []
-                }
+                admins_data = {"owner": [int(owner_id)], "admin": []}
                 with open(admins_json_path, "w", encoding="utf-8") as f:
                     json.dump(admins_data, f, indent=4, ensure_ascii=False)
+
+        # ⚙️ अब common path define करें (हर हालत में)
+        bot_data_path = os.path.join(new_bot_data_dir, "bot_data.json")
+        admins_json_path = os.path.join(new_bot_data_dir, "ADMINS.json")
+        premium_file = os.path.join(new_bot_data_dir, "premium.json")
+
+        git_bot_data_path = os.path.join("BOT_DATA", new_bot_id, "bot_data.json")
+        git_admins_json_path = os.path.join("BOT_DATA", new_bot_id, "ADMINS.json")
+        git_premium_file = os.path.join("BOT_DATA", new_bot_id, "premium.json")
 
         # 🔹 bots.json सेव करें
         with open(BOTS_JSON_PATH, "w", encoding="utf-8") as f:
@@ -148,15 +149,15 @@ def add_bot():
         if resp.status_code != 200:
             return jsonify({"error": "Webhook setup failed", "details": resp.text}), 500
 
-        # ✅ GitHub पर अपलोड
+        # ✅ GitHub अपलोड
         bot_details = bots_data[new_bot_id]
         add_new_bot(new_bot_id, bot_details)
         save_registered_bot_to_github(owner_id, bot_username, new_bot_id)
-        # save data file to git
         save_json_to_alt_github(local_json_path=bot_data_path, github_path=git_bot_data_path)
-        # Save owner to github
         save_json_to_alt_github(local_json_path=admins_json_path, github_path=git_admins_json_path)
-        # Save premium file
+
+        # Premium file बनाकर सेव करें
+        save_a_premium(price=40, days=3, bot_id=new_bot_id, plan_id="free-123-3er45tgk3-93kd939dk")
         save_json_to_alt_github(local_json_path=premium_file, github_path=git_premium_file)
 
         return jsonify({
@@ -168,7 +169,6 @@ def add_bot():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 def get_is_monetized(bot_id: str) -> bool:
     file_path = BOTS_JSON_PATH
@@ -248,6 +248,7 @@ def add_premium(auth_key):
     bot_id = request.args.get("bot_id")
     price = request.args.get("price", "free")
     days = request.args.get("days", "3")
+    plan_id = request.args.get("plan_id")  # optional but used to prevent duplicate
 
     if not bot_id:
         return jsonify({"status": False, "message": "⚠️ Missing bot_id!"}), 400
@@ -257,20 +258,32 @@ def add_premium(auth_key):
     except:
         return jsonify({"status": False, "message": "⚠️ Invalid days value!"}), 400
 
+    # अगर plan_id नहीं भेजा गया तो नया बना दो
+    if not plan_id:
+        plan_id = str(uuid.uuid4())
+
     try:
-        # ✅ Save Premium
-        save_a_premium(price, days, bot_id)
+        # ✅ Save Premium (handles duplicates internally)
+        entry = save_a_premium(price, days, BASE_PATH, bot_id, plan_id)
+
+        # अगर duplicate था तो message अलग होगा
+        message = "✅ Premium added successfully!"
+        if entry.get("plan_id") == plan_id and "duplicate" in entry.get("status", ""):
+            message = "⚠️ Duplicate request — plan already exists!"
+
         return jsonify({
             "status": True,
-            "message": "✅ Premium added successfully!",
+            "message": message,
             "bot_id": bot_id,
-            "price": price,
-            "days": days
+            "plan_id": entry["plan_id"],
+            "price": entry["price"],
+            "days": entry["days"],
+            "start_date_and_time": entry["start_date_and_time"],
+            "expire_date_and_time": entry["expire_date_and_time"]
         })
+
     except Exception as e:
         return jsonify({"status": False, "message": f"❌ Error: {str(e)}"}), 500
-        
-        
 @app.route("/edit<bot_token>/<path:file_path>", methods=["GET", "POST"])
 def edit_file_ui(bot_token, file_path):
     try:
