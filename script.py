@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 from github import add_new_bot, download_bots_from_github  # ⚠️ इसे सही path से import करें
 from save_file_to_alt_github import save_json_to_alt_github
 from save_all_registered_bots import save_registered_bot_to_github
-from premium import save_a_premium
+from premium import save_a_premium, has_active_premium
+
 
 app = Flask(__name__)
 CORS(app) 
@@ -129,6 +130,7 @@ def add_bot():
                 admins_data = {"owner": [int(owner_id)], "admin": []}
                 with open(admins_json_path, "w", encoding="utf-8") as f:
                     json.dump(admins_data, f, indent=4, ensure_ascii=False)
+            save_a_premium(price=40, days=3, bot_id=new_bot_id, plan_id="free-123-3er45tgk3-93kd939dk")     
 
         # ⚙️ अब common path define करें (हर हालत में)
         bot_data_path = os.path.join(new_bot_data_dir, "bot_data.json")
@@ -238,6 +240,29 @@ def auth_file(bot_token, file_path):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/check_premium/<auth_key>", methods=["GET"])
+def check_premium(auth_key):
+    # 🔒 Auth-Key Verify
+    if auth_key != AUTH_KEY:
+        return jsonify({"status": False, "message": "❌ Invalid Auth-Key!"}), 401
+
+    # 🔍 Required Parameter
+    bot_id = request.args.get("bot_id")
+    if not bot_id:
+        return jsonify({"status": False, "message": "⚠️ Missing bot_id!"}), 400
+
+    # ✅ Check Premium
+    try:
+        active = has_active_premium(bot_id)
+        return jsonify({
+            "status": True,
+            "bot_id": bot_id,
+            "premium_active": active,
+            "message": "✅ Premium is active!" if active else "❌ No active premium found."
+        })
+    except Exception as e:
+        return jsonify({"status": False, "message": f"❌ Error: {str(e)}"}), 500
 @app.route("/add_premium/<auth_key>", methods=["GET"])
 def add_premium(auth_key):
     # 🔒 Auth-Key Check
