@@ -4,18 +4,13 @@ import base64
 import logging
 import requests
 from dotenv import load_dotenv
-
+from common_data import ALT_REPO, ALT_GITHUB_TOKEN
 load_dotenv()
 
 # 📜 Logger सेटअप
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("AltGitHubSaver")
 
-# ⚙️ पर्यावरण से GitHub Token
-ALT_GITHUB_TOKEN = os.getenv("ALT_GITHUB_TOKEN")  # <--- .env में define करें
-
-# ⚙️ Repository और Owner Details
-ALT_REPO = "sainipankaj2007ps/Database-for-Telegram-builder"
 GITHUB_API = "https://api.github.com"
 
 

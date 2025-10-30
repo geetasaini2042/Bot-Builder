@@ -47,7 +47,7 @@ def save_bots_to_github():
         logging.error("❌ bots.json file not found locally")
         return False
 
-    with open("bots.json", "r", encoding="utf-8") as f:
+    with open(BOTS_JSON_PATH, "r", encoding="utf-8") as f:
         file_content = f.read()
 
     # 🔹 GitHub पर पहले की file की SHA प्राप्त करें (overwrite करने के लिए)

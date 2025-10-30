@@ -11,14 +11,6 @@ GITHUB_PATH = "all_registered_bot.json"
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
 
 def save_registered_bot_to_github(owner_id: int, bot_username: str, bot_id: str):
-    """
-    ✅ Function: save_registered_bot_to_github
-    काम: all_registered_bot.json को GitHub से fetch करके अपडेट करता है।
-    - अगर फाइल मौजूद नहीं है तो नई बनाता है।
-    - हर owner_id के अंदर उसके बॉट्स सेव होते हैं।
-    - हर बॉट में username और webhook_base_url दोनों सेव होते हैं।
-    """
-
     headers = {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"

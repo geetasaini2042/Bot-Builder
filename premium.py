@@ -49,13 +49,6 @@ import os, json, pytz, uuid
 from datetime import datetime, timedelta
 
 def save_a_premium(price, days, bot_id, plan_id=None):
-    """
-    Save a new premium plan for the bot.
-    Avoid duplicate saves using plan_id.
-    Automatically starts after current active premium (if any).
-    """
-
-    # ✅ File path
     premium_file = os.path.join(BASE_PATH, "BOT_DATA", bot_id, "premium.json")
     os.makedirs(os.path.dirname(premium_file), exist_ok=True)
 

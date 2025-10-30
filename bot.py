@@ -8,19 +8,9 @@ import handlers, callback_data
 import callback_data
 from common_data import IS_TERMUX
 from github import download_bots_from_github
-# ============================
-#   HANDLERS
-# ============================
-"""
-@app.route('/webhook/<bot_token>', methods=['POST'])
-def webhook(bot_token):
-    update = request.get_json()
-    #send_message(bot_token, 6150091802, " नमस्! यह Flask ultra-fast webhook bot है 🚀")
-    #return jsonify({"status": "ok"}), 200
-    return handle_webhook_request(bot_token, update)
-"""
+from load_bot_data import download_all_bot_data
 
-
+"""
 @on_message(filters.regex("hello|hi") & filters.private())
 def hello_handler(bot_token, update, message):
     chat_id = message["chat"]["id"]
@@ -31,28 +21,12 @@ def hello_handler(bot_token, update, message):
 def group_handler(bot_token, update, message):
     chat_id = message["chat"]["id"]
     send_message(bot_token, chat_id, "👥 Group में message मिला!")
+"""
 
-"""
-@on_message(filters.text() & filters.private() & ~filters.command("start"))
-def echo_handler(bot_token, update, message):
-    chat_id = message["chat"]["id"]
-    text = message.get("text", "")
-    send_message(bot_token, chat_id, f"आपने कहा: {text}")
-"""
-"""
-@on_callback_query
-def callback_handler(bot_token, update, callback):
-    chat_id = callback["message"]["chat"]["id"]
-    data = callback["data"]
-    send_message(bot_token, chat_id, f"आपने callback चुना: {data}")
-
-"""
-# ============================
-#   RUN APP
-# ============================
 if __name__ == "__main__":
     if IS_TERMUX:
         polling_loop()  # Termux mode में webhook की जगह polling
     else:
-        download_bots_from_github()
+        download_bots_from_github() #REGISTERED BOT DATA
+        download_all_bot_data() #BOTS INTERNAL DATA
         app.run(host="0.0.0.0", port=8000)
