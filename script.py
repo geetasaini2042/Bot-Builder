@@ -152,12 +152,12 @@ def add_bot():
         # ✅ GitHub अपलोड
         bot_details = bots_data[new_bot_id]
         add_new_bot(new_bot_id, bot_details)
+        print(f"added: {new_bot_id}", bot_details )
         save_registered_bot_to_github(owner_id, bot_username, new_bot_id)
         save_json_to_alt_github(local_json_path=bot_data_path, github_path=git_bot_data_path)
         save_json_to_alt_github(local_json_path=admins_json_path, github_path=git_admins_json_path)
 
         # Premium file बनाकर सेव करें
-        save_a_premium(price=40, days=3, bot_id=new_bot_id, plan_id="free-123-3er45tgk3-93kd939dk")
         save_json_to_alt_github(local_json_path=premium_file, github_path=git_premium_file)
 
         return jsonify({
