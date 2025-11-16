@@ -217,7 +217,7 @@ def edit_message_text(bot_token: str, chat_id: int, message_id: int, text: str, 
     """Edit message text (background)"""
     def _edit():
         url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
-        payload = {"chat_id": chat_id, "message_id": message_id, "text": text}
+        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
         if reply_markup:
             payload["reply_markup"] = reply_markup
         _post(url, payload, timeout=3)
@@ -235,7 +235,7 @@ def send_message(bot_token: str, chat_id: int, text: str,parse_mode=None, reply_
     """
     def _send():
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
 
         if reply_markup:
             if hasattr(reply_markup, "to_dict"):
