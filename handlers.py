@@ -122,7 +122,8 @@ def start_handler(bot_token, update, message):
     payload = {
         "chat_id": chat_id,
         "text": description,
-        "reply_markup": keyboard_dict
+        "reply_markup": keyboard_dict,
+        "parse_mode": "Markdown"
     }
     requests.post(url, json=payload, timeout=2)
     if not is_premium:
