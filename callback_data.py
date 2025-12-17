@@ -478,8 +478,7 @@ def add_url_callback(bot_token, update, cq):
     chat_id = cq.get("message", {}).get("chat", {}).get("id")
     message_id = cq.get("message", {}).get("message_id")
     msg_text = (
-    f"{esc('Please send a title for your URL (Example: \"Click Here\")')}"
-)
+    f"{esc('Please send a title for your URL (Example: \"Click Here\")')}")
     edit_message_text(bot_token, chat_id, message_id, msg_text)
     answer_callback_query(bot_token, callback_id)
     
@@ -500,8 +499,7 @@ def receive_url_name(bot_token, update, msg):
     save_json_file(get_status_file(bot_token), status_data)
     chat_id = msg["chat"]["id"]
     msg_text = (
-    f"{esc('Now send a valid URL (Example: https://...)')}"
-)
+    f"{esc('Now send a valid URL (Example: https://...)')}")
     send_message(bot_token, chat_id, msg_text)
 
 def get_owner_id(bot_token: str) -> str:
@@ -533,18 +531,15 @@ def receive_url(bot_token, update, msg):
     bot_token,
     int(get_owner_id(bot_token)),
     msg_text,
-    reply_markup={"inline_keyboard": keyboard}
-)
+    reply_markup={"inline_keyboard": keyboard})
     except Exception:
         chat_id = msg["chat"]["id"]
         msg_text = (
-    f"{esc('❌ Please send a valid and reachable URL.')}"
-)
+    f"{esc('❌ Please send a valid and reachable URL.')}")
         send_message(
     bot_token,
     chat_id,
-    msg_text
-)
+    msg_text)
         return
 
     # ---------------------------
@@ -571,13 +566,11 @@ def receive_url(bot_token, update, msg):
     msg_text = (
     f"{esc('Now send a caption for your URL :')}\n"
     f"{esc(url)}\n"
-    f"{esc('(Example: This is a demo caption)')}"
-)
+    f"{esc('(Example: This is a demo caption)')}")
     send_message(
     bot_token,
     chat_id,
-    msg_text
-)
+    msg_text)
     
 @on_message(filters.private() & filters.text() & StatusFilter("getting_caption_url:"))
 def receive_url_caption(bot_token, update, msg):
@@ -611,10 +604,6 @@ def receive_url_caption(bot_token, update, msg):
         )
     )
         return
-
-    # ---------------------------
-    # Prepare new URL item
-    # ---------------------------
     existing_items = parent.get("items", [])
     max_row = max([item.get("row", 0) for item in existing_items], default=-1)
 
@@ -645,8 +634,7 @@ def receive_url_caption(bot_token, update, msg):
     save_json_to_alt_github(data_file_path,git_data_file)
 
     # ---------------------------
-    # Generate keyboard and reply
-    # ---------------------------
+
     kb = generate_folder_keyboard(parent, int(user_id), bot_token)
     chat_id = msg["chat"]["id"]
     msg_text = (
