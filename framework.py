@@ -3,10 +3,6 @@ from flask import jsonify
 from pathlib import Path
 from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH,BOTS_JSON_PATH
 from typing import Optional
-# ============================
-#   FILTER SYSTEM
-# ============================
-
 class Filter:
     def __init__(self, func):
         self.func = func
@@ -150,13 +146,86 @@ def send_message(bot_token, chat_id, text):
     def _send():
         try:
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            payload = {"chat_id": chat_id, "text": text}
+            payload = {
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": "MarkdownV2"
+            }
             requests.post(url, json=payload, timeout=2)
         except Exception as e:
             print("⚠️ Send error:", e)
 
     threading.Thread(target=_send, daemon=True).start()
 
+# 1. साधारण टेक्स्ट को एस्केप करने के लिए (ताकि ! . - से एरर न आए)
+def esc(text):
+    """
+    Helper to escape text for MarkdownV2.
+    Use this for your bot's static messages like 'Hello User!' -> 'Hello User\!'
+    """
+    special_chars = r"_*[]()~`>#+-=|{}.!"
+    return "".join(f"\\{c}" if c in special_chars else c for c in str(text))
+
+# 2. यूजर के मैसेज (Entities) को MarkdownV2 में बदलने के लिए
+def msg_to_markdown_v2(msg):
+    """
+    Converts a Telegram Message object (dict) to a valid MarkdownV2 string,
+    preserving formatting like Bold, Italic, Links, etc.
+    """
+    text = msg.get("text", "")
+    entities = msg.get("entities", [])
+
+    # अगर कोई फॉर्मेटिंग नहीं है, तो पूरे टेक्स्ट को एस्केप कर दो
+    if not entities:
+        return esc(text)
+
+    # Entities को सॉर्ट करें
+    entities.sort(key=lambda e: e["offset"])
+    
+    formatted_text = ""
+    last_offset = 0
+    
+    for entity in entities:
+        offset = entity["offset"]
+        length = entity["length"]
+        e_type = entity["type"]
+        
+        # एंटिटी से पहले का टेक्स्ट (इसे एस्केप करना होगा)
+        plain_chunk = text[last_offset:offset]
+        formatted_text += esc(plain_chunk)
+
+        # एंटिटी वाला असली कंटेंट
+        content = text[offset:offset+length]
+        
+        # MarkdownV2 सिंटैक्स अप्लाई करें
+        if e_type == "bold":
+            formatted_text += f"*{content}*"
+        elif e_type == "italic":
+            formatted_text += f"_{content}_"
+        elif e_type == "code":
+            formatted_text += f"`{content}`"
+        elif e_type == "pre":
+            formatted_text += f"```{content}```"
+        elif e_type == "strikethrough":
+            formatted_text += f"~{content}~"
+        elif e_type == "underline":
+            formatted_text += f"__{content}__"
+        elif e_type == "spoiler":
+            formatted_text += f"||{content}||"
+        elif e_type == "text_link":
+            url = entity.get("url")
+            formatted_text += f"[{content}]({url})"
+        else:
+            # अगर कोई अनजाना टाइप है तो उसे बस टेक्स्ट की तरह एस्केप कर दो
+            formatted_text += esc(content)
+
+        last_offset = offset + length
+
+    # बचा हुआ आखिरी हिस्सा जोड़ें
+    remaining = text[last_offset:]
+    formatted_text += esc(remaining)
+
+    return formatted_text
 
 # ============================
 #   MAIN UPDATE PROCESSOR
@@ -235,7 +304,7 @@ def send_message(bot_token: str, chat_id: int, text: str,parse_mode=None, reply_
     """
     def _send():
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+        payload = {"chat_id": chat_id, "text": text, "parse_mode": "MarkdownV2"}
 
         if reply_markup:
             if hasattr(reply_markup, "to_dict"):
@@ -260,7 +329,7 @@ def send_message(bot_token: str, chat_id: int, text: str,parse_mode=None, reply_
     return thread  # Optional: return thread if you want to join/wait
 def send_with_error_message(bot_token: str, chat_id: int, text: str, reply_markup=None):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode" : "Markdown"}
+    payload = {"chat_id": chat_id, "text": text, "parse_mode" : "MarkdownV2"}
 
     if reply_markup:
         if hasattr(reply_markup, "to_dict"):
@@ -285,7 +354,7 @@ def edit_message(bot_token: str, chat_id: int, message_id: int, text: str, reply
         payload = {
             "chat_id": chat_id,
             "message_id": message_id,
-            "parse_mode": "Markdown"
+            "parse_mode": "MarkdownV2"
         }
 
         if is_caption:
