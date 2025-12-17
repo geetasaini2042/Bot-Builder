@@ -1784,9 +1784,8 @@ def add_webapp_callback(bot_token, update, callback_query):
         bot_token,
         callback_query["message"]["chat"]["id"],
         callback_query["message"]["message_id"],
-        (
-            f"{esc('Please send a title for your web app (Example : \'OPEN APP\')')}"
-        )
+        esc('Please send a title for your web app (Example : "OPEN WEB APP")')
+        
     )
 
 
@@ -1820,10 +1819,7 @@ def receive_webapp_name(bot_token, update, message):
 
     send_message(
         bot_token,
-        message["chat"]["id"],
-        (
-            f"{esc('Now send a url of your webapp (Example : https://...)')}"
-        )
+        message["chat"]["id"],esc('Now send a url of your webapp (Example : https://...)')
     )
     
 @on_message(filters.private()  & filters.text()  & StatusFilter("getting_webapp"))
@@ -1839,19 +1835,13 @@ def receive_webapp(bot_token, update, message):
     try:
         send_with_error_message(
         bot_token,
-        int(get_owner_id(bot_token)),
-        (
-            f"{esc('This is only url checking message! Please ignor this message.')}"
-        ),
+        int(get_owner_id(bot_token)),esc('This is only url checking message! Please ignor this message.'),
         reply_markup=keyboard
     )
     except Exception:
         return send_message(
         bot_token,
-        message["chat"]["id"],
-        (
-            f"{esc('❌ Please send a valid and reachable URL.')}"
-        )
+        message["chat"]["id"],esc('❌ Please send a valid and reachable URL.')
     )
 
     # Temp storage
@@ -1880,9 +1870,7 @@ def receive_webapp(bot_token, update, message):
 
     send_message(
         bot_token,
-        message["chat"]["id"],
-        (
-            f"{esc('Now send a caption for your Webapp.')}"
+        message["chat"]["id"],esc('Now send a caption for your Webapp.')
         )
     )
 
@@ -1961,9 +1949,7 @@ def receive_webapp_caption(bot_token, update, message):
     send_message(
         bot_token,
         chat_id,
-        (
-            f"{esc('🧩 WebApp सफलतापूर्वक जोड़ा गया ✅')}"
-        ),
+        esc('🧩 WebApp सफलतापूर्वक जोड़ा गया ✅'),
         reply_markup=kb
     )
 
@@ -2026,9 +2012,7 @@ def add_file_callback(bot_token,update, callback_query):
         bot_token,
         chat_id,
         message_id,
-        (
-            f"{esc('Please Send Document(s)..')}"
-        )
+        esc('Please Send Document(s)..')
     )
 def get_new_file_id_from_resp(resp: dict):
     # resp is Telegram API JSON response: {"ok": True, "result": { ... message ...}}
