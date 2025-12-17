@@ -2,7 +2,7 @@ import json, uuid, threading
 from typing import Union
 import os, json
 from typing import Union
-from framework import on_callback_query, filters, edit_message_text, answer_callback_query, on_message, send_with_error_message, send_audio, send_video, send_photo, send_api, send_document, delete_message, edit_message
+from framework import on_callback_query,get_markdown, filters, edit_message_text, answer_callback_query, on_message, send_with_error_message, send_audio, send_video, send_photo, send_api, send_document, delete_message, edit_message
 from framework import (
     on_message, filters,
     send_message, edit_message_text
@@ -267,19 +267,9 @@ def receive_folder_name(bot_token, update, msg):
 @on_message(filters.private() & filters.text() & StatusFilter("getting_folder_description"))
 def receive_folder_description(bot_token, update, msg):
     user_id = msg["from"]["id"]
-    text = msg.get("text", "").strip()
-
-    # If markdown entities exist, keep formatted text; else escape
-    if msg.get("entities"):
-        formatted = text  # assuming already markdown
-    else:
-        formatted = escape_markdown(text)
-
-    description = formatted
-
-    # ---------------------------
-    # Load status
-    # ---------------------------
+    #text = msg.get("text", "").strip()
+    description = get_markdown(msg)
+    
     status_file = get_status_file(bot_token)
     status_data = load_json_file(status_file)
     status = status_data.get(str(user_id), "")
@@ -587,7 +577,7 @@ def receive_url(bot_token, update, msg):
     # ---------------------------
     keyboard = [[{"text": "🌐 Checking url", "url": url}]]
     try:
-        send_with_error_message(bot_token, int(get_owner_id(bot_token)), "🧩 Url Button:", reply_markup={"inline_keyboard": keyboard})
+        send_with_error_message(bot_token, int(get_owner_id(bot_token)), "This is just a chacking url button!\nPlease ignore it", reply_markup={"inline_keyboard": keyboard})
     except Exception:
         chat_id = msg["chat"]["id"]
         send_message(bot_token, chat_id, "❌ Please send a valid and reachable URL.")
@@ -620,7 +610,11 @@ def receive_url(bot_token, update, msg):
 def receive_url_caption(bot_token, update, msg):
     user_id = str(msg["from"]["id"])
     text = msg.get("text", "").strip()
-    caption = escape_markdown(text)  # framework function
+    caption = @on_message(filters.private() & filters.text() & StatusFilter("getting_folder_description"))
+def receive_folder_description(bot_token, update, msg):
+    user_id = msg["from"]["id"]
+    #text = msg.get("text", "").strip()
+    description = get_markdown(msg)  # framework function
     data_file_path=get_data_file(bot_token)
     bot_id= bot_token.split(":")[0]
     # ---------------------------
@@ -870,7 +864,6 @@ def update_created_by_handler(bot_token, update, callback_query):
     user_id = user.get("id")
     message = callback_query.get("message", {})
     bot_id = bot_token.split(":")[0]
-    # 🔹 Folder ID निकालना
     parts = data.split(":")
     print(parts)
     if len(parts) < 2:
@@ -985,17 +978,17 @@ def update_description_prompt(bot_token, update, query):
 
     folder = find_folder(bot_data.get("data", {}), folder_id)
     if not folder:
-        answer_callback_query(bot_token, query["id"], "❌ फ़ोल्डर नहीं मिला।", show_alert=True)
+        answer_callback_query(bot_token, query["id"], "❌ No Folder Found!", show_alert=True)
         return
 
-    current_description = folder.get("description", "कोई विवरण उपलब्ध नहीं है।")
+    current_description = folder.get("description", "NO DESCRIPTION!")
 
     edit_message_text(
         bot_token,
         query["message"]["chat"]["id"],
         query["message"]["message_id"],
         f"Please Send a New Description:\n\n"
-        f"*Current Description*\n`{current_description}`\n\nPlease send a /update command to save data after you edits."
+        f"*Current Description*\n`{current_description}`\n\nPlease send a /update command to save data after your edits."
     )
 
 # ✅ Webhook-based version of updating description
@@ -1049,7 +1042,7 @@ def receive_new_description(bot_token, update, msg):
         return
 
     # 📝 Markdown escape
-    formatted = escape_markdown(text)
+    formatted = get_markdown(msg)
 
     # 🧩 Update folder description
     folder["description"] = formatted
@@ -2388,13 +2381,7 @@ def edit_caption_receive(bot_token, update, msg):
     user_id = str(msg.get("from", {}).get("id"))
     chat_id = msg.get("chat", {}).get("id")
     raw_text = msg.get("text", "").strip()
-
-    # format/escape caption for safety
-    if raw_text:
-        # preserve markdown-like formatting but escape problematic chars
-        new_caption = escape_markdown(raw_text)
-    else:
-        new_caption = ""
+    new_caption = get_markdown(msg)
 
     # Load status to get file_uuid
     status_file = get_status_file(bot_token)
@@ -2445,8 +2432,8 @@ def edit_caption_receive(bot_token, update, msg):
 
     caption_text = (
         f"Caption Updated Successfully\n\n"
-        f"Name : `{escape_markdown(str(name))}`\n"
-        f"New Caption : `{escape_markdown(str(new_caption))}`\n"
+        f"Name : `{name}`\n"
+        f"New Caption : `{new_caption}`\n"
         f"File ID : `{file_id}`"
     )
 
@@ -2666,24 +2653,16 @@ def confirm_file_callback(bot_token, update, callback_query):
     data = callback_query.get("data", "")
     parts = data.split(":", 1)
     bot_id = bot_token.split(":")[0]
-    #print("hek pankaj")
-    #print(bot_id)
-    #print(f"parts □ {parts} □")
-  
     if len(parts) < 2:
         print("INVALID")
         return answer_callback_query(bot_token, callback_id, "❌ Invalid callback data.", True)
-
-    file_uuid = parts[1]  # this is the temp file's uuid
+    file_uuid = parts[1] 
     user = callback_query.get("from", {})
     user_id = str(user.get("id", ""))
 
     # acknowledge callback quickly
     answer_callback_query(bot_token, callback_id)
-
-    # load temp file for this bot
     temp_file = get_temp_file(bot_token)
-    #print(f"hi □ {temp_file} □")
     try:
         with open(temp_file, "r") as f:
             temp_data = json.load(f)
