@@ -1867,11 +1867,9 @@ def receive_webapp(bot_token, update, message):
     status_data[user_id] = f"getting_caption_webapp:{folder_id}"
     with open(status_user_file, "w") as f:
         json.dump(status_data, f)
-
     send_message(
         bot_token,
         message["chat"]["id"],esc('Now send a caption for your Webapp.')
-        )
     )
 
 
@@ -2029,7 +2027,6 @@ def get_new_file_id_from_resp(resp: dict):
                     return photos[-1].get("file_id")
             else:
                 return result[key].get("file_id")
-    # sometimes message may have 'document' nested under result.message (rare) - fallback scan
     def scan_for_file_id(obj):
         if isinstance(obj, dict):
             if "file_id" in obj:
@@ -2148,10 +2145,12 @@ def receive_any_media(bot_token, update, msg):
         new_file_id = get_new_file_id_from_resp(resp)
         if not new_file_id:
             msg_err = (
-                f"{esc('❌ Failed to get File ID.')}\n"
-                f"{esc('Please ensure I am an Admin in the Database Channel:')}\n"
-                f"`{esc(str(FILE_LOGS))}`"
-            )
+              esc('❌ Failed to get File ID.')
+              "\n"
+              esc('Please ensure I am an Admin in the Database Channel:')
+              "\n"
+              f"`{esc(str(FILE_LOGS))}`"
+                      )
             send_message(bot_token, chat_id, msg_err)
             return
 
@@ -2335,7 +2334,7 @@ def rename_file_receive(bot_token, update, msg):
 
     file_entry = temp_data.get(user_id, {}).get("files", {}).get(file_uuid)
     if not file_entry:
-        return send_message(bot_token, chat_id, f"{esc('❌ File not found in your temp data.')}")
+        return send_message(bot_token, chat_id, esc('❌ File not found in your temp data.'))
 
     # Update the in-temp name
     file_entry["name"] = new_name
@@ -2353,7 +2352,7 @@ def rename_file_receive(bot_token, update, msg):
     # Prepare caption and buttons
     file_id = file_entry.get("file_id")
     caption = (
-        f"{esc('File Renamed Successfully')}\n\n"
+        f"*{esc('File Renamed Successfully')}*\n\n"
         f"*{esc('New Name')}* : `{esc(new_name)}`\n"
         f"*{esc('Caption')}* : {file_entry.get('caption') or new_name}\n\n"
         f"*{esc('File ID')}* : `{esc(file_id)}`\n"
@@ -2401,7 +2400,7 @@ def edit_file_caption_prompt(bot_token, update, callback_query):
         return answer_callback_query(
             bot_token,
             callback_query.get("id"),
-            f"{esc('❌ Invalid callback data.')}",
+            '❌ Invalid callback data.',
             True
         )
 
@@ -2421,7 +2420,7 @@ def edit_file_caption_prompt(bot_token, update, callback_query):
         return answer_callback_query(
             bot_token,
             callback_query.get("id"),
-            f"{esc('❌ File not found.')}",
+            '❌ File not found.',
             True
         )
 
@@ -2498,7 +2497,7 @@ def edit_file_caption_prompt(bot_token, update, callback_query):
         send_message(
             bot_token,
             chat_id,
-            f"{esc('📝 Please send the new caption for the file.')}"
+            f"{esc('📝 Please send the new caption for the file.')}\n"
         )
 @on_message(filters.private() & filters.text() & StatusFilter("file_captioning:"))
 def edit_caption_receive(bot_token, update, msg):
@@ -2517,7 +2516,7 @@ def edit_caption_receive(bot_token, update, msg):
 
     status_val = status_data.get(user_id, "")
     if ":" not in status_val:
-        send_message(bot_token, chat_id, f"{esc('❌ Status error or expired.')}")
+        send_message(bot_token, chat_id, f"{esc('❌ Status error or expired.')}\n")
         return
 
     _, file_uuid = status_val.split(":", 1)
@@ -2532,7 +2531,7 @@ def edit_caption_receive(bot_token, update, msg):
 
     file_entry = temp_data.get(user_id, {}).get("files", {}).get(file_uuid)
     if not file_entry:
-        send_message(bot_token, chat_id, f"{esc('❌ File not found.')}")
+        send_message(bot_token, chat_id, f"{esc('❌ File not found.')}\n")
         return
 
     # Update caption
@@ -2714,15 +2713,15 @@ def cancel_file_handler(bot_token, update, callback_query):
         bot_token,
         chat_id,
         message_id,
-        f"{esc('❌ File upload cancelled successfully.')}",
+        f"{esc('❌ File upload cancelled successfully.')}\n",
         reply_markup=None,
         is_caption=True
 )
             except Exception as e:
                 print("cancel_file: edit_message failed:", e)
-                send_message(bot_token, chat_id, f"{esc('❌ File upload cancelled successfully.')}")
+                send_message(bot_token, chat_id, f"{esc('❌ File upload cancelled successfully.')}\n")
         else:
-            send_message(bot_token, user_id, f"{esc('❌ File upload cancelled successfully.')}")
+            send_message(bot_token, user_id, f"{esc('❌ File upload cancelled successfully.')}\n")
     else:
         return answer_callback_query(bot_token, callback_id, "❌ File not found or already cancelled.", True)
 
@@ -3078,7 +3077,7 @@ def send_file_from_json(bot_token, update, callback_query):
                 f"{esc('Someone accessed your VIP file.')}\n\n"
                 f"{esc('But your bot is not monetized yet.')}\n"
                 f"{esc('Please monetize your bot to enable ads and earn money.')}\n\n"
-                f"{esc('To monetize your bot visit bot @BotixHubBot')}",
+                f"{esc('To monetize your bot visit bot @BotixHubBot')}\n",
                 reply_markup=None,
                 protect_content=False
 )
@@ -3089,7 +3088,7 @@ def send_file_from_json(bot_token, update, callback_query):
                 file_id,
                 f"{esc('This file is a VIP file. But your bot is not monetized yet.')}\n"
                 f"{esc('Please monetize your bot to enable ads and earn money.')}\n\n"
-                f"{esc('To monetize your bot visit bot @BotixHubBot')}",
+                f"{esc('To monetize your bot visit bot @BotixHubBot')}\n",
                 reply_markup=None,
                 protect_content=False
 )
@@ -3097,7 +3096,7 @@ def send_file_from_json(bot_token, update, callback_query):
             except Exception as e:
                 print("send_file_from_json VIP error:", e)
                 answer_callback_query(bot_token, callback_id)
-                send_message(bot_token, chat_id, f"❌ Failed to prepare VIP file: {e}")
+                send_message(bot_token, chat_id, esc(f"❌ Failed to prepare VIP file: {e}"))
                 return
         buttons = []
         try:
@@ -3121,7 +3120,7 @@ def send_file_from_json(bot_token, update, callback_query):
         except Exception as e:
             print("send_file_from_json send error:", e)
             answer_callback_query(bot_token, callback_id)
-            send_message(bot_token, chat_id, f"❌ Error sending file: {e}")
+            send_message(bot_token, chat_id, esc(f"❌ Error sending file: {e}"))
             return
 
     except Exception as e:
