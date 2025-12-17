@@ -260,7 +260,7 @@ def receive_folder_name(bot_token, update, msg):
     chat_id = msg.get("chat", {}).get("id")
     from framework import send_message
     send_message(bot_token, chat_id,
-                 f"✅ नाम सेव हो गया: {text}\nअब नया folder का विवरण (description) भेजें।")
+                 f"✅Name Saved! {text}\nNow Please Send a folder message..")
                  
 
 
