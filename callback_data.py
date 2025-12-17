@@ -610,11 +610,7 @@ def receive_url(bot_token, update, msg):
 def receive_url_caption(bot_token, update, msg):
     user_id = str(msg["from"]["id"])
     text = msg.get("text", "").strip()
-    caption = @on_message(filters.private() & filters.text() & StatusFilter("getting_folder_description"))
-def receive_folder_description(bot_token, update, msg):
-    user_id = msg["from"]["id"]
-    #text = msg.get("text", "").strip()
-    description = get_markdown(msg)  # framework function
+    caption = get_markdown(msg)
     data_file_path=get_data_file(bot_token)
     bot_id= bot_token.split(":")[0]
     # ---------------------------
