@@ -478,7 +478,7 @@ def add_url_callback(bot_token, update, cq):
     chat_id = cq.get("message", {}).get("chat", {}).get("id")
     message_id = cq.get("message", {}).get("message_id")
     msg_text = (
-    f"{esc('Please send a title for your URL (Example: \"Click Here\")')}")
+    f"{esc('Please send a title for your URL (Example: "Click Here")')}")
     edit_message_text(bot_token, chat_id, message_id, msg_text)
     answer_callback_query(bot_token, callback_id)
     
