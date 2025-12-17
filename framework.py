@@ -1,4 +1,4 @@
-import requests, threading, re, os, json, uuid
+import requests, threading, re, os, json, uuid, sys
 from flask import jsonify
 from pathlib import Path
 from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH,BOTS_JSON_PATH
@@ -130,7 +130,7 @@ class StatusFilter(Filter):
         super().__init__(self.check_status)
 
     def check_status(self, msg):
-        bot_token = msg.get("bot_token")  # webhook update me token pass करना होगा
+        bot_token = msg.get("bot_token")
         user_id = msg.get("from", {}).get("id")
         if not bot_token or not user_id:
             return False
@@ -138,76 +138,80 @@ class StatusFilter(Filter):
         data = load_json_file(status_file)
         user_status = data.get(str(user_id), "")
         return user_status.startswith(self.required_status)
-# ============================
-#   TELEGRAM UTILS
-# ============================
-def send_message(bot_token, chat_id, text):
-    """Send message asynchronously"""
-    def _send():
-        try:
-            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-            payload = {
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "MarkdownV2"
-            }
-            requests.post(url, json=payload, timeout=2)
-        except Exception as e:
-            print("⚠️ Send error:", e)
-
-    threading.Thread(target=_send, daemon=True).start()
+def esc(text):
+    if text is None:
+        return ""
+    text = str(text)
+    special_chars = r"_*[]()~`>#+-=|{}.!\\"
+    return "".join(f"\\{c}" if c in special_chars else c for c in text)
 def get_markdown(msg):
-    """
-    यह फंक्शन msg ऑब्जेक्ट लेता है और सही MarkdownV2 रिटर्न करता है।
-    यह Bold, Italic, Link सब संभाल लेगा।
-    """
-    text = msg.get("text", "")
-    entities = msg.get("entities", [])
-    
-    # MarkdownV2 के लिए एस्केप करने वाले कैरेक्टर्स
-    special_chars = r"_*[]()~`>#+-=|{}.!"
+    if "caption" in msg:
+        text = msg.get("caption") or ""
+        entities = msg.get("caption_entities", [])
+    else:
+        text = msg.get("text") or ""
+        entities = msg.get("entities", [])
+    if not text:
+        return ""
 
+    text = str(text)
     if not entities:
-        # अगर सादा टेक्स्ट है, तो सिर्फ एस्केप करके दे दो
-        return "".join(f"\\{c}" if c in special_chars else c for c in text)
-
-    # अगर फॉर्मेटिंग है, तो उसे रिकन्स्ट्रक्ट (Reconstruct) करना होगा
-    formatted_text = ""
-    last_offset = 0
-    entities.sort(key=lambda e: e["offset"])
-
+        return esc(text)
+    try:
+        utf16_text = text.encode("utf-16-le")
+    except Exception as e:
+        print(f"Encoding Error: {e}")
+        return esc(text) 
+    text_len = len(utf16_text)
+    insertions = {i: {"open": [], "close": []} for i in range(0, text_len + 2, 2)}
+    entities.sort(key=lambda e: (e["offset"], -e["length"]))
     for entity in entities:
-        offset = entity["offset"]
-        length = entity["length"]
-        e_type = entity["type"]
+        # Offsets conversion: Telegram (Chars) -> Python (UTF-16 Bytes)
+        start_byte = entity["offset"] * 2
+        end_byte = (entity["offset"] + entity["length"]) * 2
+        if start_byte > text_len or end_byte > text_len:
+            continue
+        etype = entity["type"]
+        start_tag, end_tag = "", ""
         
-        # एंटिटी से पहले का टेक्स्ट (एस्केप करें)
-        formatted_text += "".join(f"\\{c}" if c in special_chars else c for c in text[last_offset:offset])
+        # Tags Mapping
+        if etype == "bold": start_tag, end_tag = "*", "*"
+        elif etype == "italic": start_tag, end_tag = "_", "_"
+        elif etype == "strikethrough": start_tag, end_tag = "~", "~"
+        elif etype == "underline": start_tag, end_tag = "__", "__"
+        elif etype == "code": start_tag, end_tag = "`", "`"
+        elif etype == "pre": start_tag, end_tag = "```", "```"
+        elif etype == "spoiler": start_tag, end_tag = "||", "||"
+        elif etype == "text_link":
+            url = entity.get("url", "")
+            # URL के अंदर अगर ')' है तो उसे एस्केप करें
+            safe_url = url.replace(")", "\\)") 
+            start_tag = "["
+            end_tag = f"]({safe_url})"
 
-        # एंटिटी वाला कंटेंट
-        content = text[offset:offset+length]
-        
-        # सिंटैक्स लगाएं
-        if e_type == "bold": formatted_text += f"*{content}*"
-        elif e_type == "italic": formatted_text += f"_{content}_"
-        elif e_type == "code": formatted_text += f"`{content}`"
-        elif e_type == "pre": formatted_text += f"```{content}```"
-        elif e_type == "strikethrough": formatted_text += f"~{content}~"
-        elif e_type == "underline": formatted_text += f"__{content}__"
-        elif e_type == "spoiler": formatted_text += f"||{content}||"
-        elif e_type == "text_link": formatted_text += f"[{content}]({entity.get('url')})"
-        else: formatted_text += "".join(f"\\{c}" if c in special_chars else c for c in content)
+        if start_tag and end_tag:
+            insertions[start_byte]["open"].append(start_tag)
+            insertions[end_byte]["close"].insert(0, end_tag)
+    formatted_text = ""
+    for i in range(0, text_len, 2):
+        if i in insertions:
+            for tag in insertions[i]["close"]:
+                formatted_text += tag
+        if i in insertions:
+            for tag in insertions[i]["open"]:
+                formatted_text += tag
+        try:
+            char_bytes = utf16_text[i:i+2]
+            char = char_bytes.decode("utf-16-le")
+            formatted_text += esc(char)
+        except Exception:
+            pass 
+    if text_len in insertions:
+        for tag in insertions[text_len]["close"]:
+            formatted_text += tag
 
-        last_offset = offset + length
-
-    # बचा हुआ टेक्स्ट
-    formatted_text += "".join(f"\\{c}" if c in special_chars else c for c in text[last_offset:])
     return formatted_text
-
 def handle_webhook_request(bot_token, update):
-    """Return immediate OK & start background thread"""
-    
-    # 🔹 bots.json लोड करें
     try:
         with open(BOTS_JSON_PATH, "r", encoding="utf-8") as f:
             bots_data = json.load(f)
@@ -215,70 +219,75 @@ def handle_webhook_request(bot_token, update):
         return jsonify({"error": "data not found"}), 500
     except json.JSONDecodeError:
         return jsonify({"error": "invalid data format"}), 500
-
-    # 🔹 चेक करें कि token bots.json में है या नहीं
     authorized = any(bot_info.get("bot_token") == bot_token for bot_info in bots_data.values())
     if not authorized:
         return jsonify({"error": "unauthorized token"}), 401
-
-    # 🔹 अगर टोकन वैध है तो बैकग्राउंड में प्रोसेस करें
     threading.Thread(target=process_update, args=(bot_token, update), daemon=True).start()
     return jsonify({"status": "ok"}), 200
-    
-    
-# framework.py
 def on_message(filter_obj=None):
     """Register message handler"""
     def decorator(func):
         message_handlers.append((filter_obj or filters.all(), func))
         return func
     return decorator
-
-
 def on_callback_query(filter_obj=None):
     """Register callback query handler"""
     def decorator(func):
         callback_handlers.append((filter_obj or filters.callback_data(".*"), func))
         return func
     return decorator
-# -------------------------
-# Telegram helper (fast)
-# -------------------------
-
-def send_message(bot_token: str, chat_id: int, text: str, reply_markup: dict = None):
-    """Send message in background thread to keep webhook fast"""
-    def _send():
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-        _post(url, payload, timeout=3)
-    threading.Thread(target=_send, daemon=True).start()
-
-def edit_message_text(bot_token: str, chat_id: int, message_id: int, text: str, reply_markup: dict = None):
-    """Edit message text (background)"""
+def edit_message_text(bot_token: str, chat_id: int, message_id: int, text: str, reply_markup=None):
     def _edit():
         url = f"https://api.telegram.org/bot{bot_token}/editMessageText"
-        payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "Markdown"}
+        payload = {
+            "chat_id": chat_id, 
+            "message_id": message_id, 
+            "text": text, 
+            "parse_mode": "MarkdownV2"
+        }
         if reply_markup:
-            payload["reply_markup"] = reply_markup
-        _post(url, payload, timeout=3)
-    threading.Thread(target=_edit, daemon=True).start()
+            if hasattr(reply_markup, "to_dict"):
+                payload["reply_markup"] = reply_markup.to_dict()
+            else:
+                payload["reply_markup"] = reply_markup
+        try:
+            resp = requests.post(url, json=payload, timeout=5)
+            data = resp.json()
+            if not data.get("ok"):
+                description = data.get("description", "")
+                if "can't parse entities" in description or "must be escaped" in description:
+                    print(f"⚠️ Markdown Error in Edit. Retrying safe... ({description})")
+                    payload["text"] = esc(text)
+                    resp = requests.post(url, json=payload, timeout=5)
+                    retry_data = resp.json()
+                    if not retry_data.get("ok"):
+                        print(f"❌ Edit Failed after retry: {retry_data.get('description')}")
+                elif "message is not modified" in description:
+                    pass
+                else:
+                    print(f"❌ Edit Failed: {description}")
+        except requests.RequestException as e:
+            print(f"HTTP Error in Edit: {e}")
+        except Exception as e:
+            print(f"System Error in Edit: {e}")
+    thread = threading.Thread(target=_edit, daemon=True)
+    thread.start()
+    return thread
+
 
 class TelegramSendMessageError(Exception):
-    """Custom exception for Telegram sendMessage failures"""
-    pass
-#send_message(bot_token, chat_id, prompt_caption, parse_mode="Markdown")
-def send_message(bot_token: str, chat_id: int, text: str,parse_mode=None, reply_markup=None):
-    """
-    Send message in background thread.
-    Raises TelegramSendMessageError if message fails.
-    reply_markup should be a dict or InlineKeyboardMarkup object
-    """
+     pass
+def send_message(bot_token: str, chat_id: int, text: str, parse_mode="MarkdownV2", reply_markup=None):
     def _send():
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "MarkdownV2"}
-
+        
+        # 1. Payload तैयार करें
+        payload = {
+            "chat_id": chat_id, 
+            "text": text, 
+            "parse_mode": parse_mode
+        }
+        
         if reply_markup:
             if hasattr(reply_markup, "to_dict"):
                 payload["reply_markup"] = reply_markup.to_dict()
@@ -286,30 +295,53 @@ def send_message(bot_token: str, chat_id: int, text: str,parse_mode=None, reply_
                 payload["reply_markup"] = reply_markup
 
         try:
+            # 2. पहली कोशिश (First Attempt)
             resp = requests.post(url, json=payload, timeout=5)
             data = resp.json()
-            if not data.get("ok"):
-                # Raise error with Telegram description
-                raise TelegramSendMessageError(data.get("description", "Unknown error"))
-        except requests.RequestException as e:
-            raise TelegramSendMessageError(f"HTTP request failed: {e}") from e
-        except Exception as e:
-            raise TelegramSendMessageError(f"Send failed: {e}") from e
 
-    # Run in background thread
+            # 3. अगर एरर आए, तो चेक करें कि क्या वह Markdown का एरर है?
+            if not data.get("ok"):
+                description = data.get("description", "")
+                
+                # ये Telegram के standard markdown errors हैं
+                if "can't parse entities" in description or "must be escaped" in description:
+                    print(f"⚠️ Markdown Error detected. Retrying with escaped text... ({description})")
+                    
+                    # --- FALLBACK LOGIC ---
+                    # टेक्स्ट को escape करें और दोबारा भेजें
+                    payload["text"] = esc(text)
+                    
+                    # दोबारा रिक्वेस्ट भेजें (Retry)
+                    resp = requests.post(url, json=payload, timeout=5)
+                    data = resp.json()
+                    
+                    # अगर अभी भी फेल हुआ, तो हार मान लें
+                    if not data.get("ok"):
+                        raise TelegramSendMessageError(data.get("description", "Unknown error after retry"))
+                else:
+                    # अगर कोई और एरर है (जैसे User Blocked, Chat not found), तो तुरंत raise करें
+                    raise TelegramSendMessageError(description)
+
+        except requests.RequestException as e:
+            # नेटवर्क एरर (Network/Connection Error)
+            print(f"HTTP Error: {e}")
+        except Exception as e:
+            # अन्य कोई भी एरर
+            print(f"Send failed: {e}")
+
+    # थ्रेड स्टार्ट करें
     thread = threading.Thread(target=_send, daemon=True)
     thread.start()
-    return thread  # Optional: return thread if you want to join/wait
+    return thread
+
 def send_with_error_message(bot_token: str, chat_id: int, text: str, reply_markup=None):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode" : "MarkdownV2"}
-
     if reply_markup:
         if hasattr(reply_markup, "to_dict"):
             payload["reply_markup"] = reply_markup.to_dict()
         else:
             payload["reply_markup"] = reply_markup
-
     try:
         resp = requests.post(url, json=payload, timeout=5)
         data = resp.json()
@@ -317,24 +349,19 @@ def send_with_error_message(bot_token: str, chat_id: int, text: str, reply_marku
             raise TelegramSendMessageError(data.get("description", "Unknown error"))
     except requests.RequestException as e:
         raise TelegramSendMessageError(f"HTTP request failed: {e}") from e
-#edit_message_text(bot_token, chat_id, message_id, caption, reply_markup=keyboard, is_caption=True)
 def edit_message(bot_token: str, chat_id: int, message_id: int, text: str, reply_markup=None, is_caption=False):
-    """Auto choose editMessageText or editMessageCaption"""
     def _edit():
         method = "editMessageCaption" if is_caption else "editMessageText"
         url = f"https://api.telegram.org/bot{bot_token}/{method}"
-
         payload = {
             "chat_id": chat_id,
             "message_id": message_id,
             "parse_mode": "MarkdownV2"
         }
-
         if is_caption:
             payload["caption"] = text
         else:
             payload["text"] = text
-
         if reply_markup:
             if hasattr(reply_markup, "to_dict"):
                 payload["reply_markup"] = reply_markup.to_dict()
@@ -354,7 +381,6 @@ def edit_message(bot_token: str, chat_id: int, message_id: int, text: str, reply
                         for row in getattr(reply_markup, "inline_keyboard", [])
                     ]
                 }
-
         try:
             r = requests.post(url, json=payload, timeout=3)
             if not r.ok:
@@ -374,24 +400,12 @@ def answer_callback_query(bot_token: str, callback_query_id: str, text: str = No
             payload["text"] = text
         _post(url, payload, timeout=3)
     threading.Thread(target=_ans, daemon=True).start()
-#answer_callback_query(bot_token, callback_id, "❌ File not found in temp.", True)
-def answer_callback_query(bot_token: str, callback_query_id: str, text: str = None, show_alert: bool = False):
-    """Acknowledge callback to remove loading spinner"""
-    def _ans():
-        url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
-        payload = {"callback_query_id": callback_query_id, "show_alert": show_alert}
-        if text:
-            payload["text"] = text
-        _post(url, payload, timeout=3)
-    threading.Thread(target=_ans, daemon=True).start()
-
 
 def process_update(bot_token: str, update: dict):
     try:
-        # MESSAGE handling
         if "message" in update:
             msg = update["message"]
-            msg["bot_token"] = bot_token   # 🟢 Inject bot_token
+            msg["bot_token"] = bot_token
 
             for f, func in message_handlers:
                 try:
@@ -400,12 +414,9 @@ def process_update(bot_token: str, update: dict):
                         break
                 except Exception as e:
                     print("Handler error:", e)
-
-        # CALLBACK_QUERY handling
         elif "callback_query" in update:
             cq = update["callback_query"]
-            cq["bot_token"] = bot_token   # 🟢 Inject bot_token
-
+            cq["bot_token"] = bot_token
             data = cq.get("data", "")
             for f, func in callback_handlers:
                 try:
@@ -415,16 +426,8 @@ def process_update(bot_token: str, update: dict):
                         break
                 except Exception as e:
                     print("Callback handler error:", e)
-
     except Exception as e:
         print("❌ process_update error:", e)
-# ============================
-#   WEBHOOK ENTRY POINT
-# ============================
-
-
-# framework.py या अलग helpers.py में रखें
-
 class InlineKeyboardButton:
     def __init__(self, text: str, callback_data: str = None, url: str = None, web_app: dict = None):
         self.text = text
@@ -451,19 +454,12 @@ class InlineKeyboardMarkup:
 
     def to_dict(self):
         return {"inline_keyboard": self.inline_keyboard}
-        
-import re
-
 def escape_markdown(text: str) -> str:
     """
     Escape characters for Telegram Markdown V2 formatting
     """
     escape_chars = r"_*[]()~`>#+-=|{}.!"
     return re.sub(f"([{re.escape(escape_chars)}])", r"\\\1", text)
-    
-# ---------------------------
-# Telegram API helpers
-# ---------------------------
 def _post(url, json_payload=None, files=None, timeout=10):
     try:
         resp = requests.post(url, json=json_payload, files=files, timeout=timeout)
@@ -479,12 +475,8 @@ def _post(url, json_payload=None, files=None, timeout=10):
 def send_api(bot_token: str, method: str, payload: dict):
     url = f"https://api.telegram.org/bot{bot_token}/{method}"
     return _post(url, json_payload=payload)
-
-# send_message runs in background (fast webhook)
-
-# synchronous sends — we need the returned message object to extract new file_id
 def send_document(bot_token: str, chat_id: int, document: str, caption: Optional[str] = None, reply_markup=None):
-    payload = {"chat_id": chat_id, "document": document}
+    payload = {"chat_id": chat_id, "document": document, "parse_mode": "MarkdownV2"}
     if caption:
         payload["caption"] = caption
     if reply_markup:
@@ -492,7 +484,7 @@ def send_document(bot_token: str, chat_id: int, document: str, caption: Optional
     return send_api(bot_token, "sendDocument", payload)
 
 def send_photo(bot_token: str, chat_id: int, photo: str, caption: Optional[str] = None, reply_markup=None):
-    payload = {"chat_id": chat_id, "photo": photo}
+    payload = {"chat_id": chat_id, "photo": photo, "parse_mode": "MarkdownV2"}
     if caption:
         payload["caption"] = caption
     if reply_markup:
@@ -500,7 +492,7 @@ def send_photo(bot_token: str, chat_id: int, photo: str, caption: Optional[str] 
     return send_api(bot_token, "sendPhoto", payload)
 
 def send_video(bot_token: str, chat_id: int, video: str, caption: Optional[str] = None, reply_markup=None):
-    payload = {"chat_id": chat_id, "video": video}
+    payload = {"chat_id": chat_id, "video": video, "parse_mode": "MarkdownV2"}
     if caption:
         payload["caption"] = caption
     if reply_markup:
@@ -508,7 +500,7 @@ def send_video(bot_token: str, chat_id: int, video: str, caption: Optional[str] 
     return send_api(bot_token, "sendVideo", payload)
 
 def send_audio(bot_token: str, chat_id: int, audio: str, caption: Optional[str] = None, reply_markup=None):
-    payload = {"chat_id": chat_id, "audio": audio}
+    payload = {"chat_id": chat_id, "audio": audio, "parse_mode": "MarkdownV2"}
     if caption:
         payload["caption"] = caption
     if reply_markup:
@@ -519,6 +511,5 @@ def delete_message(bot_token: str, chat_id: int, message_id: int):
     try:
         send_api(bot_token, "deleteMessage", {"chat_id": chat_id, "message_id": message_id})
     except Exception as e:
-        # best-effort, ignore
         print("delete_message error:", e)
 

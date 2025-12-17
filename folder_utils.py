@@ -6,7 +6,7 @@ from common_data import BASE_PATH
 BASE_PATH = Path(BASE_PATH)
 from keyboard_utils import ADMINS  # uses BASE_PATH from keyboard_utils
 from script import get_bot_folder
-
+from framework import esc
 def load_bot_data(bot_token: str):
     bot_id = bot_token.split(":")[0]
     data_file = BASE_PATH / "BOT_DATA" / bot_id / "bot_data.json"
@@ -94,6 +94,9 @@ def generate_folder_keyboard(folder: dict, user_id: int, bot_id: str):
 
     return {"inline_keyboard": rows}
 
+# सुनिश्चित करें कि esc फंक्शन यहाँ उपलब्ध है (या import किया गया है)
+# from framework import esc 
+
 def process_open_callback(bot_token: str, callback_data: str, user_info: dict, chat_id: int):
     """
     Returns (text, keyboard_dict)
@@ -101,23 +104,44 @@ def process_open_callback(bot_token: str, callback_data: str, user_info: dict, c
     bot_id = bot_token.split(":")[0]
     full_data = load_bot_data(bot_token)
     if not full_data:
-        return "❌ Bot data not found.", None
+        return esc("❌ Bot data not found."), None
 
     root = full_data.get("data", {})
     folder_id = callback_data.split(":", 1)[1]
     folder = find_folder_by_id(root, folder_id)
     if not folder:
-        return "❌ Folder not found.", None
+        return esc("❌ Folder not found."), None
 
-    # placeholder replacement
-    first = user_info.get("first_name", "") or ""
-    last = user_info.get("last_name", "") or ""
-    full = (first + " " + last).strip()
+    # 1. User Info निकालें और उन्हें ESCAPE करें
+    # (क्योंकि हम इन्हें MarkdownV2 स्ट्रिंग के अंदर डालने वाले हैं)
+    
+    raw_first = user_info.get("first_name", "") or ""
+    raw_last = user_info.get("last_name", "") or ""
+    raw_username = user_info.get("username", "") or ""
     uid = str(user_info.get("id", ""))
-    username = user_info.get("username", "") or ""
-    mention = f"[{first}](tg://user?id={uid})" if first else f"tg://user?id={uid}"
 
-    raw_text = folder.get("description", "Hello 👋")
+    # वेरिएबल्स को सुरक्षित बनाएं (ताकि नाम में dot/dash होने पर एरर न आए)
+    first = esc(raw_first)
+    last = esc(raw_last)
+    full = esc((raw_first + " " + raw_last).strip())
+    username = esc(raw_username)
+
+    # Mention सिंटैक्स: [Name](tg://user?id=123)
+    # Name पहले ही esc हो चुका है, जो सही है।
+    mention = f"[{first}](tg://user?id={uid})" if first else f"[{esc('User')}](tg://user?id={uid})"
+
+    # 2. डिस्क्रिप्शन लोड करें
+    # हम मान कर चल रहे हैं कि 'saved description' पहले से get_markdown() से पास होकर आया है (Formatted है)।
+    # लेकिन अगर description खाली है, तो Default Text को esc() करना जरूरी है।
+    
+    raw_text = folder.get("description")
+    
+    if not raw_text:
+        # अगर डिस्क्रिप्शन नहीं है, तो डिफ़ॉल्ट टेक्स्ट को एस्केप करके सेट करें
+        raw_text = esc("Hello 👋 Select an option below:")
+
+    # 3. प्लेसहोल्डर्स बदलें (Replace)
+    # अब safe variables का use करें
     text = raw_text.replace("${first_name}", first) \
         .replace("${last_name}", last) \
         .replace("${full_name}", full) \
@@ -126,5 +150,9 @@ def process_open_callback(bot_token: str, callback_data: str, user_info: dict, c
         .replace("${mention}", mention) \
         .replace("${link}", f"tg://user?id={uid}")
 
+    # 4. कीबोर्ड जनरेट करें
     keyboard = generate_folder_keyboard(folder, int(user_info.get("id", 0)), bot_id)
+    
+    # .to_dict() यहाँ नहीं, बल्कि edit_message_text में कॉल होता है, 
+    # लेकिन अगर generate_folder_keyboard dict नहीं लौटा रहा तो चेक कर लें।
     return text, keyboard
