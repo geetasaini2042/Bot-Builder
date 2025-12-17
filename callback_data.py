@@ -2145,10 +2145,10 @@ def receive_any_media(bot_token, update, msg):
         new_file_id = get_new_file_id_from_resp(resp)
         if not new_file_id:
             msg_err = (
-              esc('❌ Failed to get File ID.')
-              "\n"
-              esc('Please ensure I am an Admin in the Database Channel:')
-              "\n"
+              esc('❌ Failed to get File ID.'),
+              "\n",
+              esc('Please ensure I am an Admin in the Database Channel:'),
+              "\n",
               f"`{esc(str(FILE_LOGS))}`"
                       )
             send_message(bot_token, chat_id, msg_err)
