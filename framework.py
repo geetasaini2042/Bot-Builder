@@ -3,6 +3,21 @@ from flask import jsonify
 from pathlib import Path
 from common_data import IS_TERMUX, API_URL, BOT_TOKEN, BASE_PATH,BOTS_JSON_PATH
 from typing import Optional
+import logging
+import sys
+
+# Logging Configuration
+logging.basicConfig(
+    level=logging.INFO,  # INFO, WARNING, ERROR sab capture karega
+    format="%(asctime)s [%(levelname)s] %(message)s", # Format: Time [LEVEL] Message
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.FileHandler("bot.log"),    # File me save karega
+        logging.StreamHandler(sys.stdout)  # Terminal pe dikhayega
+    ]
+)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
 class Filter:
     def __init__(self, func):
         self.func = func
@@ -472,9 +487,38 @@ def _post(url, json_payload=None, files=None, timeout=10):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+#import logging
+
 def send_api(bot_token: str, method: str, payload: dict):
     url = f"https://api.telegram.org/bot{bot_token}/{method}"
-    return _post(url, json_payload=payload)
+    
+    # 1. First Attempt
+    response = _post(url, json_payload=payload)
+    
+    # 2. Check for Markdown Parsing Errors
+    # Telegram usually returns: {"ok": False, "description": "Bad Request: can't parse entities..."}
+    if isinstance(response, dict) and not response.get("ok"):
+        description = str(response.get("description", "")).lower()
+        
+        if "parse" in description or "entities" in description:
+            logging.warning(f"Markdown Error: {description}. Escaping text and retrying...")
+            
+            # Create a shallow copy to avoid modifying original payload
+            retry_payload = payload.copy()
+            
+            # Fix Caption (for Media)
+            if retry_payload.get("caption"):
+                retry_payload["caption"] = esc(retry_payload["caption"])
+            
+            # Fix Text (for Message)
+            if retry_payload.get("text"):
+                retry_payload["text"] = esc(retry_payload["text"])
+            
+            # 3. Retry Request
+            return _post(url, json_payload=retry_payload)
+
+    return response
+
 def send_document(bot_token: str, chat_id: int, document: str, caption: Optional[str] = None, reply_markup=None):
     payload = {"chat_id": chat_id, "document": document, "parse_mode": "MarkdownV2"}
     if caption:
