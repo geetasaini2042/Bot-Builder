@@ -2499,17 +2499,16 @@ def edit_file_caption_prompt(bot_token, update, callback_query):
             chat_id,
             f"{esc('📝 Please send the new caption for the file.')}\n"
         )
+
+
+
 @on_message(filters.command("update") & filters.private())
 def update_github_data_handler(bot_token, update, msg):
     chat_id = msg["chat"]["id"]
     user_id = msg.get("from", {}).get("id")
     bot_id = bot_token.split(":")[0]
 
-    admin_data = ADMINS(bot_id)
-    owners = admin_data.get("owners", [])
-    admins = admin_data.get("admins", [])
-
-    if user_id not in owners and user_id not in admins:
+    if user_id not in ADMINS(bot_id):
         send_message(bot_token, chat_id, esc("❌ Access Denied: Only Bot Owner or Admins can use this command."))
         return
 
@@ -2541,18 +2540,12 @@ def update_github_data_handler(bot_token, update, msg):
             edit_message_text(bot_token, chat_id, msg_id, error_msg)
         else:
             send_message(bot_token, chat_id, error_msg)
-@on_message(filters.command("update-me") & filters.private())
+@on_message(filters.command("update_me") & filters.private())
 def restore_github_data_handler(bot_token, update, msg):
     chat_id = msg["chat"]["id"]
     user_id = msg.get("from", {}).get("id")
     bot_id = bot_token.split(":")[0]
-
-    # 1. Admin/Owner Check
-    admin_data = ADMINS(bot_id)
-    owners = admin_data.get("owners", [])
-    admins = admin_data.get("admins", [])
-
-    if user_id not in owners and user_id not in admins:
+    if user_id not in ADMINS(bot_id):
         send_message(bot_token, chat_id, esc("❌ Access Denied: Only Bot Owner or Admins can use this command."))
         return
 
