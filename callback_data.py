@@ -16,7 +16,7 @@ from status_filters import StatusFilter
 from framework import InlineKeyboardButton, InlineKeyboardMarkup, escape_markdown
 from folder_utils import generate_folder_keyboard
 from save_file_to_alt_github import save_json_to_alt_github
-
+from github_restore import restore_specific_bot_data
 
 def get_status_file(bot_token: str) -> str:
     return os.path.join(get_bot_folder(bot_token), "status_user.json")
@@ -2499,6 +2499,97 @@ def edit_file_caption_prompt(bot_token, update, callback_query):
             chat_id,
             f"{esc('📝 Please send the new caption for the file.')}\n"
         )
+@on_message(filters.command("update") & filters.private())
+def update_github_data_handler(bot_token, update, msg):
+    chat_id = msg["chat"]["id"]
+    user_id = msg.get("from", {}).get("id")
+    bot_id = bot_token.split(":")[0]
+
+    admin_data = ADMINS(bot_id)
+    owners = admin_data.get("owners", [])
+    admins = admin_data.get("admins", [])
+
+    if user_id not in owners and user_id not in admins:
+        send_message(bot_token, chat_id, esc("❌ Access Denied: Only Bot Owner or Admins can use this command."))
+        return
+
+    msg_id = None
+    try:
+        loading_text = esc("⏳ Backing up data...")
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        resp = requests.post(url, json={"chat_id": chat_id, "text": loading_text, "parse_mode": "MarkdownV2"}).json()
+        msg_id = resp.get("result", {}).get("message_id")
+    except:
+        pass
+
+    try:
+        local_data_file = get_data_file(bot_token)
+        git_data_file = f"BOT_DATA/{bot_id}/bot_data.json"
+        save_json_to_alt_github(local_data_file, git_data_file)
+        success_msg = esc(f"✅ Data successfully synced for Bot ID: {bot_id}")
+
+        if msg_id:
+            edit_message_text(bot_token, chat_id, msg_id, success_msg)
+        else:
+            send_message(bot_token, chat_id, success_msg)
+
+    except Exception as e:
+        print(f"GitHub Backup Error: {e}")
+        error_msg = esc(f"⚠️ Backup Failed Please Try again Later!")
+
+        if msg_id:
+            edit_message_text(bot_token, chat_id, msg_id, error_msg)
+        else:
+            send_message(bot_token, chat_id, error_msg)
+@on_message(filters.command("update-me") & filters.private())
+def restore_github_data_handler(bot_token, update, msg):
+    chat_id = msg["chat"]["id"]
+    user_id = msg.get("from", {}).get("id")
+    bot_id = bot_token.split(":")[0]
+
+    # 1. Admin/Owner Check
+    admin_data = ADMINS(bot_id)
+    owners = admin_data.get("owners", [])
+    admins = admin_data.get("admins", [])
+
+    if user_id not in owners and user_id not in admins:
+        send_message(bot_token, chat_id, esc("❌ Access Denied: Only Bot Owner or Admins can use this command."))
+        return
+
+    # 2. Loading Message
+    msg_id = None
+    try:
+        loading_text = esc("⏳ Restoring data...")
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        resp = requests.post(url, json={"chat_id": chat_id, "text": loading_text, "parse_mode": "MarkdownV2"}).json()
+        msg_id = resp.get("result", {}).get("message_id")
+    except:
+        pass
+
+    # 3. Download Process
+    try:
+        # Helper function call karein
+        success = restore_specific_bot_data(bot_id)
+        
+        if success:
+            final_msg = esc(f"✅ Data successfully restored for Bot ID: {bot_id}")
+        else:
+            final_msg = esc(f"⚠️ Could not restore data.")
+
+        if msg_id:
+            edit_message_text(bot_token, chat_id, msg_id, final_msg)
+        else:
+            send_message(bot_token, chat_id, final_msg)
+
+    except Exception as e:
+        print(f"Restore Error: {e}")
+        error_msg = esc(f"⚠️ Restore Failed")
+
+        if msg_id:
+            edit_message_text(bot_token, chat_id, msg_id, error_msg)
+        else:
+            send_message(bot_token, chat_id, error_msg)
+
 @on_message(filters.private() & filters.text() & StatusFilter("file_captioning:"))
 def edit_caption_receive(bot_token, update, msg):
     user_id = str(msg.get("from", {}).get("id"))
