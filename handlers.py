@@ -129,14 +129,22 @@ def start_handler(bot_token, update, message):
     if not is_premium:
         admins_dict = ADMINS(bot_id)
         owners = admins_dict["owners"]
-        
+        create_text = (
+    "**⚡ Powered by @BotixHubBot**\n"
+    "This bot is built and hosted on the **BotixHub** infrastructure. "
+    "We provide the technology that keeps this bot running smoothly.\n\n"
+    "**🌟 Why BotixHub?**\n"
+    "• High-Speed Cloud Servers 🚀\n"
+    "• 99.9% Uptime Guarantee\n"
+    "• Advanced Security Layers 🛡️\n\n"
+    "**Want to create a bot like this? Click below!** 👇"
+        )
         if user_id not in owners:
-            # Simple User Message
-            ad_text = esc("This bot was made using @BotIxHubBot")
+            ad_text = esc(create_text)
         else:
             # Owner Message
             ad_text = (
-                f"{esc('This bot was made using @BotIxHubBot.')}\n\n"
+                f"{esc(create_text)}\n\n"
                 f"{esc('To remove this tag Please Switch to premium.')}\n"
                 f"{esc('Visit the bot now: @BotIxHubBot')}"
             )
